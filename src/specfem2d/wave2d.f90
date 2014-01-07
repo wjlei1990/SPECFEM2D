@@ -47,7 +47,6 @@ program wave2d
   !call set_model_property()
   !stop
 
-
   call read_src_and_rec(ns, x_src, z_src,&
         nrec, x_rec, z_rec, rank, nproc, comm)
   call locate_src_and_rec(ns, sglob, x_src, z_src, &
@@ -55,46 +54,18 @@ program wave2d
 
   !===================
   !locate source and receiver
-  !print *, 'Allocate source and receivers ...'
-  ! sources
-  !ns = 1
-  !allocate(sglob(ns))
-  !allocate(x_source(ns),z_source(ns))
   allocate(samp(NSTEP,3,ns))
-  sglob = 0; samp(:,:,:) = 0.0
-  x_source(1) = LENGTH/4.; z_source(1) = 3./4.*HEIGHT
-  call set_glob(ns,x_source,z_source,sglob)
-  print *,"x_source,z_source,"
-
-  ! receivers
-  !nrec = 3
-  !allocate(rglob(nrec))
-  !allocate(x_rec(nrec),z_rec(nrec))
+  samp(:,:,:) = 0.0
   allocate(syn(NSTEP,3,nrec))
-  rglob(:) = 0; syn(:,:,:) = 0.0
-  x_rec(1) = 1 * LENGTH/4; z_rec(1) = HEIGHT
-  x_rec(2) = 2 * LENGTH/4; z_rec(2) = HEIGHT
-  x_rec(3) = 3 * LENGTH/4; z_rec(3) = HEIGHT
-  call set_glob(nrec, x_rec, z_rec, rglob)
-
-  ! output source and receiver location xy files
-  open(12,file=trim(out_dir)//'sr.txt',status='unknown',iostat=ios)
-  if (ios /= 0) stop 'Error openning out_dir/sr.txt'
-  do i = 1, ns
-    write(12,*) 'S ', sngl(x_source(i)/LENGTH), sngl(z_source(i)/HEIGHT)
-  enddo
-  do i = 1, nrec
-    write(12,*) 'R ', sngl(x_rec(i)/LENGTH), sngl(z_rec(i)/HEIGHT)
-  enddo
-  close(12)
+  syn(:,:,:) = 0.0
 
   ! setup source time function
   print *, 'Setup source time functions ...'
   hdur = 100 * DT 
   print *, 'hdur = ',sngl(hdur),' s'
 
-   !f0(1) = 0.d10; f0(2) = 1.0d10; f0(3) = 0.d10 ! for SH source
-   f0(1) = 1.d10; f0(2) = 0.0d10; f0(3) = 1.d10  ! for SV source
+  !f0(1) = 0.d10; f0(2) = 1.0d10; f0(3) = 0.d10 ! for SH source
+  f0(1) = 1.d10; f0(2) = 0.0d10; f0(3) = 1.d10  ! for SV source
 
   samp = 0.0
   do itime = 1, NSTEP
@@ -103,7 +74,6 @@ program wave2d
       samp(itime, :, i) = stf * f0(:)  
     enddo
   enddo
-
   
   !=========================
   ! solver for forward wavefield

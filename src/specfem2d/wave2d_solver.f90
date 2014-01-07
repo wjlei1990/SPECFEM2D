@@ -303,6 +303,10 @@ contains
         enddo
       endif
 
+
+      call assemble_MPI_mass(mass_vector(:))
+      call assemble_MPI_vector(rhs(:))
+
       ! above here accel(:) are actually the RHS!
       ! divide by the mass matrix
       if(.not.IM_TRUE) then
