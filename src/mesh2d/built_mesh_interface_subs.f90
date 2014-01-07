@@ -21,6 +21,7 @@ contains
 
     boundary_bool(:)=.true. 
     nibool_interfaces=0
+    ninterface=8
 
     !calculate the number of interfaces 
     if(abs(anchor(1,1)-MODEL_X1).gt.TOL)then

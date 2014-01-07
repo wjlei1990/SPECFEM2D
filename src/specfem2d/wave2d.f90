@@ -43,7 +43,17 @@ program wave2d
 
   !===================
   !read mesh
-  call read_mesh()
+  call read_mesh_init(iproc,NEX,NEZ,nglob,nspec,nspecb,ninterface)
+  allocate(x(nglob))
+  allocate(z(nglob))
+  allocate(ibool(NGLLX,NGLLZ,nspec))
+  allocate(ibelm(4,),NELE)
+  allocate(my_neighbour(8))
+  allocate(nibool_interfaces(8))
+  allocate(ibool_interfaces(4,),NELE)
+  
+  call read_array(iproc,NEX,NEZ,nglob,nspec,nspecb,ninterface,&
+        x,z,ibool,ibelm,my_neighbour,nibool_interfaces,ibool_interfaces)
   !call set_model_property()
   !stop
 

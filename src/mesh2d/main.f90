@@ -32,7 +32,7 @@ program main
   do i=1, NRPOC
     call mesh_one_proc(mesh_anchor, NEX, NEZ)
     call built_mesh_interface()
-    call write_mesh_file()
+    call save_mesh()
   enddo
 
   !=============
