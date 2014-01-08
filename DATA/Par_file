@@ -1,0 +1,39 @@
+########################
+#Par_file for SPECFEM2d
+########################
+
+#Dynamic Relaxation or Wave simulation
+SIMULATION_TYPE              = 1
+
+#number of elements along two sides of the model
+NEX_XI                       = 200
+NEX_ZI                       = 100
+
+#number of processor along two sides of the model
+NPROC_XI                     = 8
+NRPOC_ZI                     = 4
+
+#path to store the local mesh file
+LOCAL_PATH                   = ./DATABASES_MPI
+
+#path to store the seismograms
+OUTPUT_PATH                  = ./OUTPUT
+
+#record length in minutes
+RECORD_LENGTH_IN_MINUTES     = 10.0
+
+#simulation time step
+DT                           = 4.0d-3
+
+# model parameter
+LENGTH                       = 20.0d+0.3
+HEIGHT                       = 10.0d+0.3
+
+#model tyep: 1)Homo: homogeneous model; 2)2layer: 2-layer model
+MODEL_TYPE                   = HOMO
+DENSITY                      = 2.6d+03
+INCOMPRESSIBILITY            = 5.2d+10
+RIGIDITY                     = 2.66d+10
+
+#DEBUG flag
+DEBUG                        = .false.
