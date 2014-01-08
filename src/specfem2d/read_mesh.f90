@@ -45,19 +45,19 @@ subroutine read_array(iproc,NEX,NEZ,nglob,nspec,nspecb, &
   integer ::i,j
 
   do iglob=1,nglob
-    write(iproc,*) x(iglob),z(iglob)
+    read(iproc,*) x(iglob),z(iglob)
   end do
   do ispec=1,nspec
     do j=1,NGLLZ
-      write(iproc,*) ibool(:,j,ispec)
+      read(iproc,*) ibool(:,j,ispec)
     end do
   end do
   do i=1,4
-    write(iproc,*) ibelm(i,:)
+    read(iproc,*) ibelm(i,:)
   end do
   do i=1,ninterface
-    write(iproc,*)my_neighbour(i),nibool_interfaces(i)
-    write(iproc,*)ibool_interfaces(i,1:nibool_interfaces(i))
+    read(iproc,*)my_neighbour(i),nibool_interfaces(i)
+    read(iproc,*)ibool_interfaces(i,1:nibool_interfaces(i))
   end do
   close(iproc)
 end subroutine read_array

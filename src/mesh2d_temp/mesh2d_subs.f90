@@ -1,42 +1,36 @@
 module wave2d_mesh
 
   use wave2d_constants
+  !use wave2d_variables
+  use wave2d_define_der_matrices
 
   implicit none
 
 contains
 
-  subroutine mesh_one_proc(SIMUL_TYPE,mesh_anchor, NEX, NEZ,nspec,LENGTH,HEIGHT,&
-              x,z,nglob,ibool,xigll,zigll,ibelm,MODEL_X1,MODEL_X2,&
-              MODEL_Z1,MODEL_Z2,ID,DEBUG)
+  subroutine mesh_one_proc(mesh_anchor, NEX, NEZ)
 
-    integer ::SIMUL_TYPE
     double precision :: mesh_anchor(2,4)
     integer :: NEX, NEZ
-    integer ::nspec
-    integer,dimension(NGLLX,NGLLZ,nspec) ::ibool
-    double precision, dimension(nglob) ::x,z
-    double precision,dimension(NGLLX)::xigll
-    double precision,dimension(NGLLZ)::zigll
-    integer dimension(4) ::nspecb
-    integer,dimension(:,:),intent(in)::ibelm
-    double precision::MODEL_X1,MODEL_X2,MODEL_Z1,MODEL_Z2
 
     double precision :: LENGTH, HEIGHT
-    logical ::DEBUG
 
-    !local variable
-    double precision,dimension ::x1,x2,z1,z2
     integer ispec,ib,i,j,k,iglob,iglob1,itime,ix,iz,ii,jj
     integer N_EQ,n_fix
+
+    ! set up grid and spectral elements
+    call define_derivative_matrices(xigll,zigll,wxgll,wzgll,hprime_xx,hprime_zz,wgllwgll_xz)
 
     ispec = 0
     iglob = 0
     nspecb(:) = 0
     N_EQ=0
     n_fix=0
-    nspec=NEX*NEZ
 
+    dxdxi(:,:,:)=0.
+    dzdxi(:,:,:)=0.
+    dxdgamma(:,:,:)=0.
+    dzdgamma(:,:,:)=0.
 
     !-----------------------------------------------------------
     LENGTH=abs(mesh_anchor(1,2)-mesh_anchor(1,1))
@@ -47,10 +41,10 @@ contains
           ispec = ispec+1
 
           ! evenly spaced achors between 0 and 1
-          x1 = LENGTH*dble(ix-1)/dble(NEX)+mesh_anchor(1,1)
-          x2 = LENGTH*dble(ix)/dble(NEX)+mesh_anchor(1,1)
-          z1 = HEIGHT*dble(iz-1)/dble(NEZ)+mesh_anchor(2,1)
-          z2 = HEIGHT*dble(iz)/dble(NEZ)+mesh_anchor(2,1)
+          x1(ispec) = LENGTH*dble(ix-1)/dble(NEX)+mesh_anchor(1,1)
+          x2(ispec) = LENGTH*dble(ix)/dble(NEX)+mesh_anchor(1,1)
+          z1(ispec) = HEIGHT*dble(iz-1)/dble(NEZ)+mesh_anchor(2,1)
+          z2(ispec) = HEIGHT*dble(iz)/dble(NEZ)+mesh_anchor(2,1)
 
           do j = 1,NGLLZ
              do i = 1,NGLLX
@@ -65,44 +59,97 @@ contains
                 endif
                 ! get the global grid points
                 iglob1 = ibool(i,j,ispec)
-                x(iglob1) = 0.5*(1.-xigll(i))*x1+0.5*(1.+xigll(i))*x2
-                z(iglob1) = 0.5*(1.-zigll(j))*z1+0.5*(1.+zigll(j))*z2
+                x(iglob1) = 0.5*(1.-xigll(i))*x1(ispec)+0.5*(1.+xigll(i))*x2(ispec)
+                z(iglob1) = 0.5*(1.-zigll(j))*z1(ispec)+0.5*(1.+zigll(j))*z2(ispec)
              enddo
           enddo
+
+      !------------------------------------------------------------------------
+
+          ! loop over GLL points to calculate jacobian, and set up numbering
+          !
+          ! jacobian = | dx/dxi dx/dgamma | = (z2-z1)*(x2-x1)/4  as dx/dgamma=dz/dxi = 0
+          !            | dz/dxi dz/dgamma | 
+          !
+          do j=1,NGLLZ
+            do i=1, NGLLX
+               ! jacobian, integration weight
+               do k=1,NGLLX
+                 dxdxi(i,j,ispec) = dxdxi(i,j,ispec)+hprime_xx(k,i)*x(ibool(k,j,ispec))
+                 dzdxi(i,j,ispec) = dzdxi(i,j,ispec)+hprime_xx(k,i)*z(ibool(k,j,ispec))
+               enddo
+               !print *, "dxdxi,dzdxi",dxdxi(i,j,ispec),dzdxi(i,j,ispec)
+               do k=1,NGLLZ
+                 dxdgamma(i,j,ispec) = dxdgamma(i,j,ispec)+hprime_zz(k,j)*x(ibool(i,k,ispec))
+                 dzdgamma(i,j,ispec) = dzdgamma(i,j,ispec)+hprime_zz(k,j)*z(ibool(i,k,ispec))
+               enddo
+               !print *,"dxdgamma,dzdgamma",dxdgamma(i,j,ispec),dzdgamma(i,j,ispec)
+               !jacobian(i,j,ispec) = (z2(ispec)-z1(ispec))*(x2(ispec)-x1(ispec)) / 4. 
+               jacobian(i,j,ispec)=dxdxi(i,j,ispec)*dzdgamma(i,j,ispec)-dzdxi(i,j,ispec)*dxdgamma(i,j,ispec)
+               !inverse the jacobian for each GLL point in the element
+               dxidx(i,j,ispec)=dzdgamma(i,j,ispec)/jacobian(i,j,ispec)
+               dgammadx(i,j,ispec)=-dzdxi(i,j,ispec)/jacobian(i,j,ispec)
+               dxidz(i,j,ispec)=-dxdgamma(i,j,ispec)/jacobian(i,j,ispec)
+               dgammadz(i,j,ispec)=dxdxi(i,j,ispec)/jacobian(i,j,ispec)
+               !print *, "11,12,21,22"
+               !print *, dxidx(i,j,ispec),dgammadx(i,j,ispec)
+               !print *, dxidz(i,j,ispec),dgammadz(i,j,ispec)
+               !end loop over GLL points
+               !if(jacobian(i,j,ispec).ne.((z2(ispec)-z1(ispec))*(x2(ispec)-x1(ispec)) / 4.) ) then
+                ! print *, "Yes, it is right!"
+               !endif
+             end do
+          end do
 
           !print *,ibool(1,1,1), ibool(1,2,1),ibool(2,1,1)
 
           ! if boundary element
           if (ix.eq.1) then         
-            if(abs(x1-MODEL_X1).lt.TOL)then
+            if(abs(x1(ispec)-MODEL_X1).lt.TOL)then
               nspecb(1) = nspecb(1) + 1
               ibelm(1,nspecb(1)) = ispec
+              do j = 1,NGLLZ
+                jacobianb(1,j,nspecb(1))= (z2(ispec)-z1(ispec))/2.
+              end do
             endif
           endif
           if (ix.eq.NEX) then
-            if(abs(x2-MODEL_X2).lt.TOL)then
+            if(abs(x2(ispec)-MODEL_X2).lt.TOL)then
               nspecb(2) = nspecb(2) + 1
               ibelm(2,nspecb(2)) = ispec
+              do j = 1,NGLLZ
+                jacobianb(2,j,nspecb(2))= (z2(ispec)-z1(ispec))/2.
+              enddo
             endif
           endif
           if (iz.eq.1) then
-            if(abs(z1-MODEL_Z1).lt.TOL)then
+            if(abs(z1(ispec)-MODEL_Z1).lt.TOL)then
               nspecb(3) = nspecb(3) + 1
               ibelm(3,nspecb(3)) = ispec
+              do i = 1,NGLLX
+                jacobianb(3,i,nspecb(3))= (x2(ispec)-x1(ispec))/2.
+              end do
             endif
           endif
           if (iz.eq.NEZ) then
-            if(abs(z2-MODEL_Z2).lt.TOL)then
+            if(abs(z2(ispec)-MODEL_Z2).lt.TOL)then
               nspecb(4) = nspecb(4) + 1
               ibelm(4,nspecb(4)) = ispec
+              do i = 1,NGLLX
+                do k=1,NGLLX
+                  jacobianb(4,i,nspecb(4)) = jacobianb(4,i,nspecb(4))+hprime_xx(k,i)*x(ibool(k,NGLLZ,ispec))
+                enddo
+               ! jacobianb(4,i,nspecb(4))= (x2(ispec)-x1(ispec))/2.
+              end do
+             !print *,"jacobianb(4,:,:)"
+             !print *, jacobianb(4,:,:)
            endif
           endif
           ! end loop over elements
        end do
     end do
     
-  call set_ID_array(nspecb,nspec,SIMUL_TYPE,N_EQ,n_fix,NEX,NEZ,&
-                ID,DEBUG)
+    call set_ID_array()
     !call set_IEN_array()
     !call set_LM_array()
 
@@ -118,19 +165,10 @@ contains
   end subroutine mesher
 
   !-------------------------------------------------------
-  subroutine set_ID_array(nspecb,nspec,SIMUL_TYPE,N_EQ,n_fix,NEX,NEZ,&
-                ID,DEBUG)
+  subroutine set_ID_array()
 
-    integer ::nspecb
-    integer ::SIMUL_TYPE
-    integer ::N_EQ
-    integer ::n_fix
-    integer ::NEX,NEZ
-    integer,dimension(:,:),intent(in) ::ID
-    integer,dimension(NGLLX,NGLLZ,nspec) ::ibool
-
-    !local variable
     integer ix,iz,i,j,ispec
+    integer n_fix
 
     N_EQ=0
     n_fix=0
@@ -252,15 +290,74 @@ contains
     endif
 
   end subroutine set_ID_array
+!--------------------------------------------------------
+  subroutine set_IEN_array()
+    integer :: i,j,ix,iz,ispec
+    
+    ispec=0
+    do iz = 1,NEZ
+      do ix = 1,NEX
+        ispec=(iz-1)*NEX+ix
+        do j=1,NGLLZ
+          do i=1,NGLLX
+            IEN(i,j,ispec)=ibool(i,j,ispec)
+          enddo
+        enddo
+      enddo
+    enddo
+
+
+    if(DEBUG)then
+      do ispec=1,NSPEC
+        print *, "Element",ispec
+        print *,"IEN"
+        print *,"--------------------"
+        do j=1,NGLLZ
+          print *,IEN(:,j,ispec)
+        enddo
+      enddo
+    endif
+  end subroutine set_IEN_array
 
 !--------------------------------------------------------
-  subroutine set_model_property(NSPEC,ibool,x,z,rho,kappa,mu)
-    integer ::NSPEC
-    integer,dimension(NGLLX,NGLLZ,NSPEC)::ibool
-    double precision,dimension(nglob) ::x,z
-    double precision, dimension(NGLLX,NGLLZ,NSPEC)::rho,kappa,mu
+  subroutine set_LM_array()
+    integer :: i,j,ix,iz,ispec
 
-    !local variables
+    ispec=0
+    do iz = 1,NEZ
+      do ix = 1,NEX
+        ispec=(iz-1)*NEX+ix
+        do j=1,NGLLZ
+          do i=1,NGLLX
+            LMX(i,j,ispec)=ID(1,IEN(i,j,ispec))
+            LMZ(i,j,ispec)=ID(2,IEN(i,j,ispec))
+          enddo
+        enddo
+      enddo
+    enddo
+
+    if(DEBUG)then
+      do ispec=1,NSPEC
+        print *, "ELEment",ispec
+        print *,"LMX"
+        print *,"--------------------"
+        do j=1,NGLLZ
+          print *,LMX(:,j,ispec)
+        enddo
+        print *,"LMZ"
+        print *,"--------------------"
+        do j=1,NGLLZ
+          print *,LMZ(:,j,ispec)
+        enddo
+      enddo
+    endif
+
+    !stop
+  end subroutine set_LM_array
+
+!--------------------------------------------------------
+  subroutine set_model_property()
+
     integer :: ispec, i, j, iglob
 
     ! properties
@@ -269,11 +366,11 @@ contains
        iglob = ibool(NGLLX/2,NGLLZ/2,ispec)
        do j = 1,NGLLZ
           do i = 1,NGLLX
-             if(z(iglob) >= 30000.0) then
+             if(z(iglob) >= HEIGHT*0.5) then
                 ! crust
-                rho(i,j,ispec) = 3000
-                kappa(i,j,ispec) = 1.0e+11
-                mu(i,j,ispec) = 6.0e+10
+                rho(i,j,ispec) = DENSITY
+                kappa(i,j,ispec) = INCOMPRESSIBILITY
+                mu(i,j,ispec) = RIGIDITY
              else
                 ! mantle
                 rho(i,j,ispec) = 3380.

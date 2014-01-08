@@ -29,41 +29,15 @@ program main
 
   !==========
   !start mesh
-  read_parameters(NEX,NEZ)
-
-  nex_one_proc=NEX/NPROC_X
-  nez_one_proc=NEZ/NPROC_Z
-  nspec=nex_one_proc*nez_one_proc
-  call acllocate_array()
-  call get_ibool()
-  call calcu_xigll_zgll(xigll,zigll)
-
-!do each processor
-
-  do i=1, NRPOC_Z
-    do j=1, NPROC_X
-       iproc=(i-1)*NPROC_X
-       mesh_anchor(1,1)=MODEL_X1
-       mesh_anchor(1,2)=MODEL_Z1
-       mesh_anchor(2,1)=mesh_anchor+LENGTH
-       mesh_anchor(2,2)=mesh_anchor+HEIGHT
-       call init_variables(nspec,x,z,max_nex_nez,ibelm,niboll_interfaces,ibool_interfaces,rho,&
-              kappa,mu)
-       call mesh_one_proc(SIMUL_TYPE,mesh_anchor,nex_one_proc,nez_one_proc,nspec,LENGTH,HEIGHT,&
-              x,z,nglob,ibool,xigll,zigll,ibelm,MODEL_X1,MODEL_X2,&
-              MODEL_Z1,MODEL_Z2,ID,DEBUG)
-
-       call build_mesh_interface(nex_one_proc,nez_one_proc,anchor, ibool, max_interface_size, ninterface,my_neighbour, &
-              nibool_interfaces,ibool_interfaces,anchor,MODEL_X1,MODEL_X2,MODEL_Z1,&
-              MODEL_Z2,NPROC_X)
-       call set_model_property(NSPEC,nglob,ibool,x,z,rho,kappa,mu)
-
-       call save_mesh(iproc,nex_one_proc,nez_one_proc,nglob,ibool,x,z,nspec,nspecb,ibelm, &
-              ninterface,my_neighbour,nibool_interfaces,ibool_interfaces,ID,&
-              rho,kappa,mu)
-    end do
+  do i=1, NRPOC
+    call mesh_one_proc(mesh_anchor, NEX, NEZ)
+    call built_mesh_interface()
+    call save_mesh()
   enddo
 
+  !=============
+  !assign model property
+  call set_model_property()
 
   !which type of simulation
   !SIMUL_TYPE=2

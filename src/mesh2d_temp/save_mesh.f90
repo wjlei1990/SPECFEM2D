@@ -1,6 +1,5 @@
 subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,ibelm, &
-    ninterface,my_neighbour,nibool_interfaces,ibool_interfaces,ID,&
-    rho,kappa,mu)
+    ninterface,my_neighbour,nibool_interfaces,ibool_interfaces)
 
   integer ::iproc
   integer ::NEX,NEZ
@@ -13,8 +12,6 @@ subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,ibelm, &
   integer ::ninterface
   integer, dimension(ninterface) ::my_neighbour,nibool_interfaces
   integer,dimension(:,:),intent(in) ::ibool_interfaces
-  integer,dimension(3*nglob) ::ID
-  double precision,dimension(NGLLX,NGLLZ,nspec) ::rho,kappa,mu
 
   !local variable
   character(len=200) ::outfile
@@ -24,7 +21,7 @@ subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,ibelm, &
   
 
   write(*,*) 'save the database'
-  write(outfile,"(('OUTPUR_FILES/MESHINFO',i5.5))") iproc
+  write(outfile,"(('MESHINFO',i5.5))") iproc
   open(iproc,FILE=trim(outfile),status='unknown',iostat=ios)
   if(ios /= 0) stop 'Error in openning the database file'
   write(iproc,*) NEX,NEZ
@@ -37,25 +34,11 @@ subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,ibelm, &
   do iglob=1,nglob
     write(iproc,*) x(iglob),z(iglob)
   end do
-
   do ispec=1,nspec
     do j=1,NGLLZ
       write(iproc,*) ibool(:,j,ispec)
     end do
   end do
-
-  do iglob=1,nglob
-    write(iproc,*)ID(:,iglob)
-  end do
-
-  do ispec=1,nspec
-    do i=1,NGLLZ
-      do j=1,NGLLX
-        write(iproc,*)rho(i,j,ispec),kappa(i,j,ispec),mu(i,j,ispec)
-      end do
-    end do
-  end do
-
   do i=1,4
     write(iproc,*) ibelm(i,:)
   end do

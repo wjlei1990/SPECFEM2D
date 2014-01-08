@@ -5,10 +5,9 @@ module build_mesh_interface_subs
 contains
 
   subroutine build_mesh_interface(NEX,NEZ,anchor, ibool, max_interface_size, ninterface, my_neighbour, &
-      nibool_interfaces, ibool_interfaces,anchor,MODEL_X1,MODEL_X2,MODEL_Z1,&
-      MODEL_Z2,NPROC_X)
+      nibool_interfaces, ibool_interfaces)
 
-    double precision,dimension(:,:), intent(in) :: anchor
+    double precision, intent(in) :: anchor(:)
     integer, intent(in) ::NEX,NEZ
     integer, dimension(:,:,:), intent(in) ::ibool
 
@@ -134,6 +133,18 @@ contains
     !  print *, "Error in calculating ninterface"
     !  stop
     !endif
+
+    
+
+
+
+    
+
+
+  
+
+
+
 
   end subroutine build_mesh_interface
 
