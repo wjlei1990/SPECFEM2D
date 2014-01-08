@@ -1,39 +1,58 @@
 module wave2d_solver
 
-  use wave2d_constants
-  use wave2d_variables
-  use wave2d_define_der_matrices
-  use wave2d_mesher
-  use solve_eg
-
   implicit none
+  include "constants.h"
 
 contains
 !---------------------------------------------
 
-  subroutine solver(nsources, sglob, samp, nreceivers, rglob, ramp)
+  subroutine solver(nsources, sglob, samp, nreceivers, rglob, ramp, &
+        DT, NSTEP, rank, nproc, comm)
 
+    use wave2d_variables
+    use wave2d_define_der_matrices
+    !use wave2d_mesher
+    !use solve_eg
 
-    integer, intent(in) :: nsources, nreceivers, sglob(nsources), rglob(nreceivers)
-    double precision, intent(inout) :: samp(NSTEP,3,nsources)
-    double precision, intent(inout) :: ramp(NSTEP,3,nreceivers)
+    integer, intent(in) :: nsources, nreceivers
+    integer, intent(in) :: sglob(:), rglob(:)
+    double precision :: samp(:,:,:), ramp(:,:,:)
+
+    !mpi env var
+    integer, intent(in) :: rank, nproc, comm
+
+    !mass matrix
+    double precision :: mass_global(NGLOB), mass_local
+
+    !stiffness matrix
+    double precision :: Stiff(NGLOB, NGLOB)
+
+    !motion info
+    double precision, dimension(3, NGLOB) :: displ,veloc,accel
+    double precision, dimension(1, 3*NGLOB) :: rhs
+   
+    !time marching info
+    double precision :: DT
+    integer :: NSTEP
+    double precision :: deltat,deltatover2,deltatsqover2,deltatsq
 
     integer ispec,ib,i,j,k,iglob, iglob1, iglob2,itime,ix,iz, itime1, itime2, itime0
     integer isource, irec, icomp, isave
     character(len=100) :: filename
 
-		integer :: ilocal,ilocal1,ilocal2
-    integer :: iglobal1,iglobal2
 
-    integer :: ii,jj,itemp,jtemp
+		!integer :: ilocal,ilocal1,ilocal2
+    !integer :: iglobal1,iglobal2
 
-    double precision :: M_B(3,2*NGLLSQUARE)
-    double precision,dimension(2*NGLOB,2*NGLOB) :: MK,inv_MK,temp_MK
+    !integer :: ii,jj,itemp,jtemp
 
-    double precision, dimension(3,2*NGLLSQUARE) :: temp_DB
-    double precision, dimension(2*NGLLSQUARE,2*NGLLSQUARE) :: temp_BDB
-    double precision, dimension(1,2*NGLOB) :: d_global,v_global,a_global
-    double precision :: fac
+    !double precision :: M_B(3,2*NGLLSQUARE)
+    !double precision,dimension(2*NGLOB,2*NGLOB) :: MK,inv_MK,temp_MK
+
+    !double precision, dimension(3,2*NGLLSQUARE) :: temp_DB
+    !double precision, dimension(2*NGLLSQUARE,2*NGLLSQUARE) :: temp_BDB
+    double precision, dimension(1,3*NGLOB) :: d_global,v_global,a_global
+    !double precision :: fac
     
     character(len=10) :: rhs3_name,rhs1_name,rhs2_name
 
@@ -43,8 +62,8 @@ contains
     c = sqrt(RIGIDITY/DENSITY)
     print *, 'number of grid points per wavelength for S:', floor(hdur*c/dh)
 
-    NINT = NSTEP/NSAVE
-    if (NINT * NSAVE > NSTEP) stop 'NSTEP should equal to NINT * NSAVE'
+    !NINT = NSTEP/NSAVE
+    !if (NINT * NSAVE > NSTEP) stop 'NSTEP should equal to NINT * NSAVE'
 
     ! calculate the global mass matrix once and for all
     mass_global(:) = 0.
@@ -135,6 +154,8 @@ contains
         enddo
       enddo
 
+      !N_EQ=max(max(ID(:,:)))
+
       rhs(1:1,1:N_EQ)=transpose(-matmul(Stiff(1:N_EQ,1:N_EQ),transpose(d_global(1:1,1:N_EQ))))
 
 
@@ -184,61 +205,7 @@ contains
       ! absorbing boudary condition
       if(ABSORB_FLAG) then
         print *,"add absorb boundary condition"
-      ! forward propagation
-      do ibb = 1, 3
-        if (ibb == 1) then
-          i = 1; nx = -1.; nz = 0.
-        else if (ibb == 2) then
-          i = NGLLX;  nx = 1.;  nz = 0.
-        else if (ibb == 3) then
-          i = 1;  nx = 0.; nz = -1.
-        end if
-        do ib = 1,nspecb(ibb)
-          if (ibb == 1 .or. ibb == 2) then
-            j1 = 1; j2 = NGLLZ
-          else if (ib == 1) then ! left corner element
-            j1 = 2; j2 = NGLLX 
-          else if (ib == nspecb(ibb)) then ! right corner element
-            j1 = 1; j2 = NGLLX-1  
-          else
-            j1 = 1; j2 = NGLLX
-          endif
-          ispec = ibelm(ibb,ib)
-
-          do j = j1, j2
-            if (ibb == 1 .or. ibb == 2) then
-              iglob = ibool(i,j,ispec)
-              rho_vp = dsqrt(rho(i,j,ispec)*(kappa(i,j,ispec)+FOUR_THIRDS*mu(i,j,ispec)))
-              rho_vs = dsqrt(rho(i,j,ispec)*mu(i,j,ispec))
-            else
-              iglob = ibool(j,i,ispec)
-              rho_vp = dsqrt(rho(j,i,ispec)*(kappa(j,i,ispec)+FOUR_THIRDS*mu(j,i,ispec)))
-              rho_vs = dsqrt(rho(j,i,ispec)*mu(j,i,ispec))
-            endif
-
-            vx = veloc(1,iglob)
-            vy = veloc(2,iglob)
-            vz = veloc(3,iglob)
-
-            vn = nx*vx+nz*vz
-
-            tx = rho_vp*vn*nx+rho_vs*(vx-vn*nx)
-            ty = rho_vs*vy
-            tz = rho_vp*vn*nz+rho_vs*(vz-vn*nz)
-
-            weight = jacobianb(ibb,j,ib)*wzgll(j)
-
-            !if(LMX(i,j,ispec)/=0) then
-              !rhs(1,LMX(i,j,ispec)) = rhs(1,LMX(i,j,ispec)) - tx*weight
-              rhs(1,ID(1,iglob)) = rhs(1,ID(1,iglob)) - tx*weight
-              rhs(1,ID(2,iglob)) = rhs(1,ID(2,iglob)) - ty*weight
-            !endif
-            !if(LMZ(i,j,ispec)/=0) then
-              !rhs(1,iglob+NGLOB) = rhs(1,LMZ(i,j,ispec)) - tz*weight
-              rhs(1,ID(3,iglob)) = rhs(1,ID(3,iglob)) - tz*weight
-            !endif
-          enddo
-        enddo
+        call add_absorb_bc(rhs, veloc)
       enddo
 
       if(DEBUG_SOLVER)then
@@ -359,24 +326,26 @@ contains
       enddo
 
       do irec = 1, nreceivers
-        ramp(itime,:,irec) = displ(:,rglob(irec))
+        if(rglob(irec).ne.0)then
+          ramp(itime,:,irec) = displ(:,rglob(irec))
+        endif
       enddo
 
       ! save snapshots
-      print *, "time_step=",itime
-      if (mod(itime, NSAVE) == 0) then
+      !print *, "time_step=",itime
+      !if (mod(itime, NSAVE) == 0) then
 
-        write(*,*) 'itime = ', itime
-        write(filename,'(a,i4.4)') trim(out_dir)//'snapshot_',itime
-
-        open(unit = 11, file = trim(filename),status = 'unknown',iostat=ios)
-        if (ios /= 0) stop 'Error writing snapshot to disk'
-        do iglob = 1, NGLOB
-          write(11,'(5e12.3)') sngl(x(iglob)/LENGTH), sngl(z(iglob)/LENGTH), (sngl(displ(j,iglob)),j=1,3) 
-        enddo
-        close(11)
-
-      endif
+      !  write(*,*) 'itime = ', itime
+      !  write(filename,'(a,i4.4)') trim(out_dir)//'snapshot_',itime
+!
+ !       open(unit = 11, file = trim(filename),status = 'unknown',iostat=ios)
+ !       if (ios /= 0) stop 'Error writing snapshot to disk'
+ !       do iglob = 1, NGLOB
+ !         write(11,'(5e12.3)') sngl(x(iglob)/LENGTH), sngl(z(iglob)/LENGTH), (sngl(displ(j,iglob)),j=1,3) 
+ !       enddo
+ !       close(11)
+!
+!      endif
 
       !stop
     end do ! end time loop
@@ -574,6 +543,8 @@ contains
 !---------------------------------------------
   subroutine ensem(ispec, Stiff_e, Stiff, wave_type)
 
+    use wave2d_variables
+
     integer :: ispec
     double precision :: Stiff_e(:,:), Stiff(:,:)
     character(len=*) :: wave_type
@@ -646,6 +617,67 @@ contains
             
   end subroutine ensem
 
+  subroutine add_absorb_bc(rhs, veloc)
+
+      !absorbing boundary conditions
+      integer :: j1,j2, ib, ibb
+      double precision :: nx,nz,vx,vy,vz,vn,rho_vp,rho_vs,tx,ty,tz,weight
+
+      do ibb = 1, 3
+        if (ibb == 1) then
+          i = 1; nx = -1.; nz = 0.
+        else if (ibb == 2) then
+          i = NGLLX;  nx = 1.;  nz = 0.
+        else if (ibb == 3) then
+          i = 1;  nx = 0.; nz = -1.
+        end if
+        do ib = 1,nspecb(ibb)
+          if (ibb == 1 .or. ibb == 2) then
+            j1 = 1; j2 = NGLLZ
+          else if (ib == 1) then ! left corner element
+            j1 = 2; j2 = NGLLX 
+          else if (ib == nspecb(ibb)) then ! right corner element
+            j1 = 1; j2 = NGLLX-1  
+          else
+            j1 = 1; j2 = NGLLX
+          endif
+          ispec = ibelm(ibb,ib)
+
+          do j = j1, j2
+            if (ibb == 1 .or. ibb == 2) then
+              iglob = ibool(i,j,ispec)
+              rho_vp = dsqrt(rho(i,j,ispec)*(kappa(i,j,ispec)+FOUR_THIRDS*mu(i,j,ispec)))
+              rho_vs = dsqrt(rho(i,j,ispec)*mu(i,j,ispec))
+            else
+              iglob = ibool(j,i,ispec)
+              rho_vp = dsqrt(rho(j,i,ispec)*(kappa(j,i,ispec)+FOUR_THIRDS*mu(j,i,ispec)))
+              rho_vs = dsqrt(rho(j,i,ispec)*mu(j,i,ispec))
+            endif
+
+            vx = veloc(1,iglob)
+            vy = veloc(2,iglob)
+            vz = veloc(3,iglob)
+
+            vn = nx*vx+nz*vz
+
+            tx = rho_vp*vn*nx+rho_vs*(vx-vn*nx)
+            ty = rho_vs*vy
+            tz = rho_vp*vn*nz+rho_vs*(vz-vn*nz)
+
+            weight = jacobianb(ibb,j,ib)*wzgll(j)
+
+            !if(LMX(i,j,ispec)/=0) then
+              !rhs(1,LMX(i,j,ispec)) = rhs(1,LMX(i,j,ispec)) - tx*weight
+              rhs(1,ID(1,iglob)) = rhs(1,ID(1,iglob)) - tx*weight
+              rhs(1,ID(2,iglob)) = rhs(1,ID(2,iglob)) - ty*weight
+            !endif
+            !if(LMZ(i,j,ispec)/=0) then
+              !rhs(1,iglob+NGLOB) = rhs(1,LMZ(i,j,ispec)) - tz*weight
+              rhs(1,ID(3,iglob)) = rhs(1,ID(3,iglob)) - tz*weight
+            !endif
+          enddo
+        enddo
+  end subroutine add_absorb_bc
 !---------------------------------------------
 
 end module wave2d_solver

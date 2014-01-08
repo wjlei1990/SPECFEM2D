@@ -5,22 +5,37 @@ program wave2d
   use wave2d_sub
   use simulation_type
 
+  use mpi
+
   implicit none
+  include "constants.h"
 
+  !src and receiver
   integer :: ns, nrec
-  double precision, dimension(:,:,:), allocatable :: samp, data, syn, adj_syn
   integer, dimension(:), allocatable :: sglob, rglob
-  double precision, dimension(:), allocatable :: x_source, z_source, x_rec, z_rec
+  double precision, dimension(:), allocatable :: x_src, z_src, x_rec, z_rec
+  
+  !time series
+  double precision, dimension(:,:,:), allocatable :: samp, syn
 
-  double precision :: t0, f0(3), ft(3), pxpf(3), f1(3), f2(3), dxdf(3)
-  double precision :: p_1, p_2, df, phi
+  double precision :: f0(3)
   double precision :: source_time_function
-  character(len=200) :: snap_name, last_frame_name
-  integer :: i, index, l, irec, itime, icomp, iter, isave, isolver
-  double precision :: xold(3), fold, gold(3), pold(3), xnew(3), fnew, gnew(3), pnew(3)
-  double precision :: lam, beta, tstart, tend, stf
-  double precision, dimension(:,:,:,:,:), allocatable :: absorb_field
-  double precision, dimension(:), allocatable :: rho_kernel, mu_kernel, kappa_kernel
+  !character(len=200) :: snap_name, last_frame_name
+  integer :: i
+  double precision :: stf
+  !double precision, dimension(:,:,:,:,:), allocatable :: absorb_field
+
+  !Par_file var
+  integer :: SIMUL_TYPE
+  integer :: NEX, NEZ, NELE, NPROC_XI, NPROC_ZI, NSTEP
+  character(len=300) :: LOCAL_PATH, OUTPUT_PATH, MODEL_TYPE
+  double precision :: RECORD_LENGTH_IN_MINUTES, DT, LENGTH, HEIGHT
+  double precision :: DENSITY, IMCOMPRESSIBILITY, RIGIDITY
+  logical :: DEBUG
+
+  !MPI env var
+  integer :: rank, nproc, comm
+  integer :: ierr
 
   !********* PROGRAM STARTS HERE *********************
   call MPI_init(ierr)
@@ -28,39 +43,43 @@ program wave2d
   call MPI_Comm_rank(comm, rank, ierr)
   call MPI_Comm_size(comm, nproc, ierr)
 
+  call read_parfile(SIMUL_TYPE, NEX, NEZ, NPROC_XI, NPROC_ZI, LOCAL_PATH, &
+        OUTPUT_PATH, RECORD_LENGTH_IN_MINUTES, NSTEP, DT, LENGTH, HEIGHT, &
+				MODEL_TYPE, DENSITY, INCOMRESSIBILITY, RIGIDITY, DEBUG)
+
   !=================
   !setup
-  out_dir = "OUTPUT_FILES/"
   !which type of simulation
-  SIMUL_TYPE=2
-  IM_TRUE=.false.
-  print *, 'The type of simulation:',SIMUL_TYPE
-  print *, "1)dynamic relax  2)wave propagation"
-  call set_simulation_flag()
-  ! set up model and mesher
-  print *, "ALPHA=",S_ALPHA
-  print *, "BETA=",S_BETA
+  if(rank.eq.0)then
+    print *, 'The type of simulation:',SIMUL_TYPE
+    print *, "1)dynamic relax  2)wave propagation"
+    call set_simulation_flag(SIMUL_TYPE,comm)
+    ! set up model and mesher
+    print *, "ALPHA=",S_ALPHA
+    print *, "BETA=",S_BETA
+  endif
 
   !===================
   !read mesh
-  call read_mesh_init(iproc,NEX,NEZ,nglob,nspec,nspecb,ninterface)
+  call read_mesh_init(rank,NEX,NEZ,nglob,nspec,nspecb,ninterface)
+  NELE=max(NEX, NEZ)
   allocate(x(nglob))
   allocate(z(nglob))
   allocate(ibool(NGLLX,NGLLZ,nspec))
-  allocate(ibelm(4,),NELE)
+  allocate(ibelm(4,NELE))
   allocate(my_neighbour(8))
   allocate(nibool_interfaces(8))
-  allocate(ibool_interfaces(4,),NELE)
+  allocate(ibool_interfaces(8,NELE))
   
-  call read_array(iproc,NEX,NEZ,nglob,nspec,nspecb,ninterface,&
+  call read_array(rank,NEX,NEZ,nglob,nspec,nspecb,ninterface,&
         x,z,ibool,ibelm,my_neighbour,nibool_interfaces,ibool_interfaces)
   !call set_model_property()
   !stop
 
-  call read_src_and_rec(ns, x_src, z_src,&
-        nrec, x_rec, z_rec, rank, nproc, comm)
-  call locate_src_and_rec(ns, sglob, x_src, z_src, &
-        nrec, rglob, x_rec, z_rec, rank, nproc, comm)
+  call read_src_and_rec(ns, x_src, z_src, nrec, x_rec, z_rec, &
+        rank, nproc, comm)
+  call locate_src_and_rec(ns, sglob, x_src, z_src, nrec, rglob, &
+      x_rec, z_rec, x, z, rank, nproc, comm)
 
   !===================
   !locate source and receiver
@@ -68,15 +87,12 @@ program wave2d
   samp(:,:,:) = 0.0
   allocate(syn(NSTEP,3,nrec))
   syn(:,:,:) = 0.0
-
   ! setup source time function
   print *, 'Setup source time functions ...'
   hdur = 100 * DT 
   print *, 'hdur = ',sngl(hdur),' s'
-
   !f0(1) = 0.d10; f0(2) = 1.0d10; f0(3) = 0.d10 ! for SH source
   f0(1) = 1.d10; f0(2) = 0.0d10; f0(3) = 1.d10  ! for SV source
-
   samp = 0.0
   do itime = 1, NSTEP
     stf = source_time_function(dble(itime-1)*DT-hdur,hdur)
@@ -89,6 +105,9 @@ program wave2d
   ! solver for forward wavefield
   print *, 'Start simulation ...'
   call solver(ns, sglob, samp, nrec, rglob, syn, &
+    NEX, NEZ, NELE, nglob, nspec, nspecb, ninterface,&
+    x,z,ibool, ID, ibelm, &
+    my_neighbour, nibool_interfaces, ibool_interfaces,&
     rank, nproc, comm)
 
   print *, 'Write out seismograms at the receiver ...'

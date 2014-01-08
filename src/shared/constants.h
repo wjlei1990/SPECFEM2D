@@ -1,41 +1,6 @@
-module wave2d_constants
-
-
-!DEGUB mode
-  logical :: DEBUG=.false.
-  logical :: DEBUG_SOLVER=.false.
-
-! PARAMETERS
-!
-! number of timesteps
-  integer, parameter :: NSTEP = 3600
-
-! number of timesteps to save the wave field
-  integer, parameter :: NSAVE = 50
-
-! time step in second
-  double precision, parameter :: DT = 4.0d-03!  s
-
-! MODEL (SI)
-! 
-  double precision, parameter :: LENGTH = 25.0d+03 ! m
-  double precision, parameter :: HEIGHT = 10.0d+03 ! m
-  double precision, parameter :: DENSITY = 2.6d+03 ! kg/m^3
-  double precision, parameter :: INCOMPRESSIBILITY = 5.2d+10 ! Pa
-  double precision, parameter :: RIGIDITY = 2.66d+10 ! Pa
-
-!
-! GRID AND GLL POINTS
-!
-! number of spectral elements
-  integer, parameter :: NEX = 10 !150 75
-  integer, parameter :: NEZ = 4 !30
   integer, parameter :: NELE = MAX(NEX,NEZ)
   integer, parameter :: NSPEC = NEX*NEZ
 
-! number of GLL points (polynomial degree plus one)
-  integer, parameter :: NGLLX = 10
-  integer, parameter :: NGLLZ = 10
   integer, parameter :: NGLL = MAX(NGLLX,NGLLZ)
 
 ! number of points per surface element
@@ -45,9 +10,15 @@ module wave2d_constants
 ! number of global points
   integer, parameter :: NGLOB = ((NGLLX-1)*NEX + 1)*((NGLLZ-1)*NEZ +1)
 
+
+
+
+! number of GLL points (polynomial degree plus one)
+  integer, parameter :: NGLLX = 5
+  integer, parameter :: NGLLZ = 5
+
 ! for the Gauss-Lobatto-Legendre points and weights
   double precision, parameter :: GAUSSALPHA = 0.d0,GAUSSBETA = 0.d0
-
 
 !
 ! CONSTANTS
