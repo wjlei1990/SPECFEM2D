@@ -55,10 +55,8 @@
 ! Assembling the mass matrix.
 !-----------------------------------------------
   subroutine assemble_MPI_scalar(array_val,npoin_val, &
-                              ninterface, max_interface_size, &
-                              max_ibool_interfaces_size, &
-                              ibool_interfaces_elastic, &
-                              nibool_interfaces_elastic, my_neighbours)
+              ninterface,  max_ibool_interfaces_size, &
+              ibool_interfaces, nibool_interfaces, my_neighbours)
 
   use :: mpi
 
@@ -66,35 +64,24 @@
 
   include 'constants.h'
 
-  integer, intent(in)  :: ninterface
-  integer, intent(in)  :: max_interface_size
-  integer, intent(in)  :: max_ibool_interfaces_size_ac,max_ibool_interfaces_size_el, &
-    max_ibool_interfaces_size_po
-  integer, dimension(NGLLX*max_interface_size,ninterface), intent(in)  :: &
-    ibool_interfaces_acoustic,ibool_interfaces_elastic,ibool_interfaces_poroelastic
-  integer, dimension(ninterface), intent(in)  :: nibool_interfaces_acoustic,nibool_interfaces_elastic, &
-    nibool_interfaces_poroelastic
+  integer :: npoin_val
+  double precision, dimension(npoin_val), intent(inout) :: array_val
+
+  integer, intent(in)  :: ninterface, max_ibool_interfaces_size
+  integer, dimension(max_ibool_interfaces_size, ninterface), intent(in)  :: &
+    ibool_interfaces
+  integer, dimension(ninterface), intent(in)  :: nibool_interfaces
   integer, dimension(ninterface), intent(in)  :: my_neighbours
   ! array to assemble
   ! acoustic
-  integer :: npoin_val1
-  real(kind=CUSTOM_REAL), dimension(npoin_val1), intent(inout) :: array_val1
-  ! elastic
-  integer :: npoin_val2
-  real(kind=CUSTOM_REAL), dimension(npoin_val2), intent(inout) :: array_val2,array_val5
-  ! poroelastic
-  integer :: npoin_val3
-  real(kind=CUSTOM_REAL), dimension(npoin_val3), intent(inout) :: array_val3,array_val4
 
   integer  :: ipoin, num_interface
   integer  :: ier
   integer  :: i
 ! there are now two different mass matrices for the elastic case
 ! in order to handle the C deltat / 2 contribution of the Stacey conditions to the mass matrix
-  double precision, dimension(max_ibool_interfaces_size_ac+2*max_ibool_interfaces_size_el+&
-       2*max_ibool_interfaces_size_po, ninterface)  :: &
-       buffer_send_faces_scalar, &
-       buffer_recv_faces_scalar
+  double precision, dimension(max_ibool_interfaces_size, ninterface) :: &
+       buffer_send_faces_scalar, buffer_recv_faces_scalar
   integer, dimension(MPI_STATUS_SIZE) :: msg_status
   integer, dimension(ninterface)  :: msg_requests
 
@@ -102,98 +89,40 @@
   buffer_recv_faces_scalar(:,:) = 0.d0
 
   do num_interface = 1, ninterface
-
      ipoin = 0
-     do i = 1, nibool_interfaces_acoustic(num_interface)
+     do i = 1, nibool_interfaces(num_interface)
         ipoin = ipoin + 1
         buffer_send_faces_scalar(ipoin,num_interface) = &
-             array_val1(ibool_interfaces_acoustic(i,num_interface))
-     enddo
-
-     do i = 1, nibool_interfaces_elastic(num_interface)
-        ipoin = ipoin + 1
-        buffer_send_faces_scalar(ipoin,num_interface) = &
-             array_val2(ibool_interfaces_elastic(i,num_interface))
-     enddo
-
-     do i = 1, nibool_interfaces_elastic(num_interface)
-        ipoin = ipoin + 1
-! there are now two different mass matrices for the elastic case
-! in order to handle the C deltat / 2 contribution of the Stacey conditions to the mass matrix
-        buffer_send_faces_scalar(ipoin,num_interface) = &
-             array_val5(ibool_interfaces_elastic(i,num_interface))
-     enddo
-
-     do i = 1, nibool_interfaces_poroelastic(num_interface)
-        ipoin = ipoin + 1
-        buffer_send_faces_scalar(ipoin,num_interface) = &
-             array_val3(ibool_interfaces_poroelastic(i,num_interface))
-     enddo
-     do i = 1, nibool_interfaces_poroelastic(num_interface)
-        ipoin = ipoin + 1
-        buffer_send_faces_scalar(ipoin,num_interface) = &
-             array_val4(ibool_interfaces_poroelastic(i,num_interface))
+             array_val(ibool_interfaces(i,num_interface))
      enddo
 
      ! non-blocking send
-     call MPI_ISEND( buffer_send_faces_scalar(1,num_interface), &
-! there are now two different mass matrices for the elastic case
-! in order to handle the C deltat / 2 contribution of the Stacey conditions to the mass matrix
-          nibool_interfaces_acoustic(num_interface)+2*nibool_interfaces_elastic(num_interface)+&
-          2*nibool_interfaces_poroelastic(num_interface), &
+     if(nibool_interfaces(num_interface).ne.0)then
+      call MPI_ISEND( buffer_send_faces_scalar(1,num_interface), &
+          max_ibool_interfaces_size,
           MPI_DOUBLE_PRECISION, &
           my_neighbours(num_interface), 11, &
           MPI_COMM_WORLD, msg_requests(num_interface), ier)
-
+      endif
   enddo
 
   do num_interface = 1, ninterface
 
      ! starts a blocking receive
-     call MPI_RECV ( buffer_recv_faces_scalar(1,num_interface), &
-! there are now two different mass matrices for the elastic case
-! in order to handle the C deltat / 2 contribution of the Stacey conditions to the mass matrix
-          nibool_interfaces_acoustic(num_interface)+2*nibool_interfaces_elastic(num_interface)+&
-          2*nibool_interfaces_poroelastic(num_interface), &
+     if(nibool_interfaces(num_interface).ne.0)then
+      call MPI_RECV ( buffer_recv_faces_scalar(1,num_interface), &
+          max_ibool_interfaces_size, &
           MPI_DOUBLE_PRECISION, &
           my_neighbours(num_interface), 11, &
           MPI_COMM_WORLD, msg_status(1), ier)
+      endif
 
      ipoin = 0
-     do i = 1, nibool_interfaces_acoustic(num_interface)
+     do i = 1, nibool_interfaces(num_interface)
         ipoin = ipoin + 1
-        array_val1(ibool_interfaces_acoustic(i,num_interface)) = &
-            array_val1(ibool_interfaces_acoustic(i,num_interface))  &
+        array_val(ibool_interfaces(i,num_interface)) = &
+            array_val(ibool_interfaces(i,num_interface))  &
              + buffer_recv_faces_scalar(ipoin,num_interface)
-     enddo
-
-     do i = 1, nibool_interfaces_elastic(num_interface)
-        ipoin = ipoin + 1
-        array_val2(ibool_interfaces_elastic(i,num_interface)) = &
-            array_val2(ibool_interfaces_elastic(i,num_interface))  &
-            + buffer_recv_faces_scalar(ipoin,num_interface)
-     enddo
-
-     do i = 1, nibool_interfaces_elastic(num_interface)
-        ipoin = ipoin + 1
-! there are now two different mass matrices for the elastic case
-! in order to handle the C deltat / 2 contribution of the Stacey conditions to the mass matrix
-        array_val5(ibool_interfaces_elastic(i,num_interface)) = &
-            array_val5(ibool_interfaces_elastic(i,num_interface))  &
-            + buffer_recv_faces_scalar(ipoin,num_interface)
-     enddo
-
-     do i = 1, nibool_interfaces_poroelastic(num_interface)
-        ipoin = ipoin + 1
-        array_val3(ibool_interfaces_poroelastic(i,num_interface)) = &
-            array_val3(ibool_interfaces_poroelastic(i,num_interface))  &
-            + buffer_recv_faces_scalar(ipoin,num_interface)
-     enddo
-     do i = 1, nibool_interfaces_poroelastic(num_interface)
-        ipoin = ipoin + 1
-        array_val4(ibool_interfaces_poroelastic(i,num_interface)) = &
-            array_val4(ibool_interfaces_poroelastic(i,num_interface)) &
-            + buffer_recv_faces_scalar(ipoin,num_interface)
      enddo
 
   enddo
@@ -215,101 +144,94 @@
 ! Particular care should be taken concerning possible optimisations of the
 ! communication scheme.
 !-----------------------------------------------
-  subroutine assemble_MPI_vector_el(array_val2,npoin, &
-                                   ninterface, &
-                                   inum_interfaces_elastic, &
-                                   max_interface_size, max_ibool_interfaces_size_el,&
-                                   ibool_interfaces_elastic, nibool_interfaces_elastic, &
-                                   tab_requests_send_recv_elastic, &
-                                   buffer_send_faces_vector_el, &
-                                   buffer_recv_faces_vector_el, &
-                                   my_neighbours)
+  subroutine assemble_MPI_vector(array_val,npoin,ID, &
+                ninterface, max_ibool_interfaces_size,&
+                ibool_interfaces, nibool_interfaces, &
+                tab_requests_send_recv, &
+                buffer_send_faces_vector, &
+                buffer_recv_faces_vector, &
+                my_neighbours)
 
   use :: mpi
 
   implicit none
 
   include 'constants.h'
-  include 'precision.h'
 
   integer, intent(in)  :: npoin
-  integer, intent(in)  :: ninterface, ninterface_elastic
-  integer, dimension(ninterface), intent(in)  :: inum_interfaces_elastic
-  integer, intent(in)  :: max_interface_size
-  integer, intent(in)  :: max_ibool_interfaces_size_el
-  integer, dimension(NGLLX*max_interface_size,ninterface), intent(in)  :: ibool_interfaces_elastic
-  integer, dimension(ninterface), intent(in)  :: nibool_interfaces_elastic
-  integer, dimension(ninterface_elastic*2), intent(inout)  :: tab_requests_send_recv_elastic
-  real(CUSTOM_REAL), dimension(max_ibool_interfaces_size_el,ninterface_elastic), intent(inout)  :: &
-       buffer_send_faces_vector_el
-  real(CUSTOM_REAL), dimension(max_ibool_interfaces_size_el,ninterface_elastic), intent(inout)  :: &
-       buffer_recv_faces_vector_el
+  double precision, dimension(3,npoin), intent(inout) :: array_val
+
+  integer, dimension(:), intent(in) ::ID
+  integer, intent(in)  :: ninterface
+  integer, intent(in)  :: max_ibool_interfaces_size
+  integer, dimension(max_ibool_interfaces_size,ninterface), intent(in)  :: ibool_interfaces
+  integer, dimension(ninterface), intent(in)  :: nibool_interfaces
+  integer, dimension(ninterface*2), intent(inout)  :: tab_requests_send_recv
+  double precision, dimension(max_ibool_interfaces_size,ninterface), intent(inout) :: &
+       buffer_send_faces_vector
+  double precision, dimension(max_ibool_interfaces_size,ninterface), intent(inout) :: &
+       buffer_recv_faces_vector
   ! array to assemble
-  real(kind=CUSTOM_REAL), dimension(3,npoin), intent(inout) :: array_val2
   integer, dimension(ninterface), intent(in) :: my_neighbours
 
   integer  :: ipoin, num_interface, iinterface, ier, i
-  integer, dimension(MPI_STATUS_SIZE)  :: status_elastic
+  integer, dimension(MPI_STATUS_SIZE)  :: stat
 
 
-  do iinterface = 1, ninterface_elastic
-
-     num_interface = inum_interfaces_elastic(iinterface)
-
+  do iinterface = 1, ninterface
      ipoin = 0
-     do i = 1, nibool_interfaces_elastic(num_interface)
-        buffer_send_faces_vector_el(ipoin+1:ipoin+3,iinterface) = &
-             array_val2(:,ibool_interfaces_elastic(i,num_interface))
+     do i = 1, nibool_interfaces(iinterface)
+        buffer_send_faces_vector(ipoin+1:ipoin+3,iinterface) = &
+             array_val(:,ID(ibool_interfaces(i,iinterface)))
         ipoin = ipoin + 3
      enddo
 
   enddo
 
-  do iinterface = 1, ninterface_elastic
+  do iinterface = 1, ninterface
 
-    num_interface = inum_interfaces_elastic(iinterface)
-
-    call MPI_ISEND( buffer_send_faces_vector_el(1,iinterface), &
-             3*nibool_interfaces_elastic(num_interface), CUSTOM_MPI_TYPE, &
-             my_neighbours(num_interface), 12, MPI_COMM_WORLD, &
-             tab_requests_send_recv_elastic(iinterface), ier)
-
-    if ( ier /= MPI_SUCCESS ) then
-      call exit_mpi('MPI_ISEND unsuccessful in assemble_MPI_vector_el')
+    if(nibool_interfaces(iinterface).ne.0)then
+      call MPI_ISEND( buffer_send_faces_vector(1,iinterface), &
+        3*nibool_interfaces(iinterface), MPI_DOUBLE_PRECISION, &
+        my_neighbours(iinterface), 12, MPI_COMM_WORLD, &
+        tab_requests_send_recv(iinterface), ier)
     endif
 
-    call MPI_IRECV ( buffer_recv_faces_vector_el(1,iinterface), &
-             3*nibool_interfaces_elastic(num_interface), CUSTOM_MPI_TYPE, &
-             my_neighbours(num_interface), 12, MPI_COMM_WORLD, &
-             tab_requests_send_recv_elastic(ninterface_elastic+iinterface), ier)
+    if ( ier /= MPI_SUCCESS ) then
+      call exit_mpi('MPI_ISEND unsuccessful in assemble_MPI_vector')
+    endif
+
+    if(nibool_interfaces(iinterface).ne.0)then
+      call MPI_IRECV ( buffer_recv_faces_vector(1,iinterface), &
+             3*nibool_interfaces(iinterface), MPI_DOUBLE_PRECISION, &
+             my_neighbours(iinterface), 12, MPI_COMM_WORLD, &
+             tab_requests_send_recv(ninterface+iinterface), ier)
+    endif
 
     if ( ier /= MPI_SUCCESS ) then
-      call exit_mpi('MPI_IRECV unsuccessful in assemble_MPI_vector_el')
+      call exit_mpi('MPI_IRECV unsuccessful in assemble_MPI_vector')
     endif
 
   enddo
 
-  do iinterface = 1, ninterface_elastic*2
+  do iinterface = 1, ninterface*2
 
-    call MPI_Wait (tab_requests_send_recv_elastic(iinterface), status_elastic, ier)
+    call MPI_Wait (tab_requests_send_recv(iinterface), stat, ier)
 
   enddo
 
-  do iinterface = 1, ninterface_elastic
-
-     num_interface = inum_interfaces_elastic(iinterface)
-
+  do iinterface = 1, ninterface
      ipoin = 0
-     do i = 1, nibool_interfaces_elastic(num_interface)
-        array_val2(:,ibool_interfaces_elastic(i,num_interface)) = &
-            array_val2(:,ibool_interfaces_elastic(i,num_interface))  &
-            + buffer_recv_faces_vector_el(ipoin+1:ipoin+3,iinterface)
+     do i = 1, nibool_interfaces(iinterface)
+        array_val(:,ID(ibool_interfaces(i,iinterface))) = &
+            array_val2(:,ID(ibool_interfaces(i,iinterface)))  &
+            + buffer_recv_faces_vector(ipoin+1:ipoin+3,iinterface)
         ipoin = ipoin + 3
      enddo
 
   enddo
 
-  end subroutine assemble_MPI_vector_el
+  end subroutine assemble_MPI_vector
 
 
 

@@ -150,8 +150,8 @@ contains
     end do
     
     call set_ID_array()
-    call set_IEN_array()
-    call set_LM_array()
+    !call set_IEN_array()
+    !call set_LM_array()
 
     ! estimate the time step
     dh = HEIGHT/dble((NGLLZ-1)*NEZ)
@@ -220,7 +220,7 @@ contains
     !----------------------
     !wave simulation
     if(SIMUL_TYPE==2)then
-      !loop over element
+      !loop over element: x
       do iz = 1,NEZ
         do ix = 1,NEX
           ispec=(iz-1)*NEX+ix
@@ -238,7 +238,7 @@ contains
           enddo
         enddo
       enddo
-      !loop over element
+      !loop over element: y
       do iz = 1,NEZ
         do ix = 1,NEX
           ispec=(iz-1)*NEX+ix
@@ -256,6 +256,24 @@ contains
           enddo
         enddo
       enddo
+      !loop over element: z
+      do iz = 1,NEZ
+        do ix = 1,NEX
+          ispec=(iz-1)*NEX+ix
+          !loop over node
+          do j=1,NGLLZ
+            do i=1,NGLLX
+              !do not do overlap things
+              if((i==1).and.(ix.gt.1)) then
+              elseif((j==1).and.(iz.gt.1))then
+              else
+                N_EQ=N_EQ+1
+                ID(3,ibool(i,j,ispec))=N_EQ
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
     endif
 
 
@@ -266,9 +284,10 @@ contains
       print *,ID(1,:)
       print *,"ID(2,:)"
       print *,ID(2,:)
+      print *,"ID(3,:)"
+      print *,ID(3,:)
       print *,"--------------------"
     endif
-
 
   end subroutine set_ID_array
 !--------------------------------------------------------

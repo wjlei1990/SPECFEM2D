@@ -70,33 +70,33 @@ contains
     accel(:,:) = 0.
 
     !Init stiff matrix
-    call init_stiff_matrix()
+    Stiff(:,:)=0.0
+    call init_stiff_matrix_PSV(Stiff)
+    call init_stiff_matrix_SH(Stiff)
 
     !MK=mass_global+Stiff
-    if(IM_TRUE)then
-      MK=S_BETA*deltat*deltat*Stiff
-      do i=1,NGLOB
-        MK(i,i)=MK(i,i)+mass_global(i)
-        MK(i+NGLOB,i+NGLOB)=MK(i+NGLOB,i+NGLOB)+mass_global(i)
-      enddo
+    !if(IM_TRUE)then
+    !  MK=S_BETA*deltat*deltat*Stiff
+    !  do i=1,NGLOB
+    !    MK(i,i)=MK(i,i)+mass_global(i)
+    !    MK(i+NGLOB,i+NGLOB)=MK(i+NGLOB,i+NGLOB)+mass_global(i)
+    !  enddo
 
-      print *,"inverse the matrix MK now..."
-      if(SIMUL_TYPE.eq.2) then
-        call cholsl(N_EQ,MK,inv_MK) 
-      endif
+    !  print *,"inverse the matrix MK now..."
+    !  if(SIMUL_TYPE.eq.2) then
+    !    call cholsl(N_EQ,MK,inv_MK) 
+    !  endif
 
-      if(DEBUG_SOLVER)then
-        temp_MK=matmul(MK,inv_MK)
-        open(30,file="MK*INV_MK")
-        do i=1,N_EQ
-          do j=1,N_EQ
-            write(30,*) i,j,temp_MK(i,j)
-          enddo
-        enddo
-      endif
-    endif
-
-
+    !  if(DEBUG_SOLVER)then
+    !    temp_MK=matmul(MK,inv_MK)
+    !    open(30,file="MK*INV_MK")
+    !    do i=1,N_EQ
+    !      do j=1,N_EQ
+    !        write(30,*) i,j,temp_MK(i,j)
+    !      enddo
+    !    enddo
+    !  endif
+    !endif
     !stop
 
     if(DEBUG_SOLVER)then
@@ -128,12 +128,11 @@ contains
       !accel_total: accelration vector
       !ensemble the real problem: drag the real value out
       do i=1,NGLOB
-        if(ID(1,i)/=0) then
-          d_global(1,ID(1,i))=displ(1,i)
-        endif
-        if(ID(2,i)/=0) then
-          d_global(1,ID(2,i))=displ(3,i)
-        endif
+        do j=1,3 !3 dimension, x-y-z (P-SV and SH)
+          if(ID(j,i)/=0) then
+            d_global(1,ID(j,i))=displ(j,i)
+          endif
+        enddo
       enddo
 
       rhs(1:1,1:N_EQ)=transpose(-matmul(Stiff(1:N_EQ,1:N_EQ),transpose(d_global(1:1,1:N_EQ))))
@@ -157,30 +156,30 @@ contains
       !
       ! force boundary conditions
       !
-      if(FORCE_FLAG) then
-        print *, "Add external force"
-        !surface
-        ibb=4
-        i=NGLLZ
-        do ib=1,nspecb(ibb)
-          if(ib==1)then
-            j1=2; j2=NGLLX
-          elseif(ib==nspecb(ibb))then
-            j1=1; j2=NGLLX-1
-          else
-            j1=1; j2=NGLLX
-          endif
-          ispec = ibelm(ibb,ib)
-          do j=j1,j2
-            if(LMX(j,i,ispec)/=0) then
-              rhs(1,LMX(j,i,ispec))=rhs(1,LMX(j,i,ispec))+force_x*wxgll(j)*jacobianb(ibb,j,ib)
-            endif
-            if(LMZ(j,i,ispec)/=0) then
-              rhs(1,LMZ(j,i,ispec))=rhs(1,LMZ(j,i,ispec))+force_z*wxgll(j)*jacobianb(ibb,j,ib)
-            endif
-          enddo
-        enddo
-      endif
+      !if(FORCE_FLAG) then
+      !  print *, "Add external force"
+      !  !surface
+      !  ibb=4
+      !  i=NGLLZ
+      !  do ib=1,nspecb(ibb)
+      !    if(ib==1)then
+      !      j1=2; j2=NGLLX
+      !    elseif(ib==nspecb(ibb))then
+      !      j1=1; j2=NGLLX-1
+      !    else
+      !      j1=1; j2=NGLLX
+      !    endif
+      !    ispec = ibelm(ibb,ib)
+      !    do j=j1,j2
+      !      if(LMX(j,i,ispec)/=0) then
+      !        rhs(1,LMX(j,i,ispec))=rhs(1,LMX(j,i,ispec))+force_x*wxgll(j)*jacobianb(ibb,j,ib)
+      !      endif
+      !      if(LMZ(j,i,ispec)/=0) then
+      !        rhs(1,LMZ(j,i,ispec))=rhs(1,LMZ(j,i,ispec))+force_z*wxgll(j)*jacobianb(ibb,j,ib)
+      !      endif
+      !    enddo
+      !  enddo
+      !endif
 
       ! absorbing boudary condition
       if(ABSORB_FLAG) then
@@ -218,25 +217,25 @@ contains
             endif
 
             vx = veloc(1,iglob)
-            !vy = veloc(2,iglob)
+            vy = veloc(2,iglob)
             vz = veloc(3,iglob)
 
             vn = nx*vx+nz*vz
 
             tx = rho_vp*vn*nx+rho_vs*(vx-vn*nx)
-            !ty = rho_vs*vy
+            ty = rho_vs*vy
             tz = rho_vp*vn*nz+rho_vs*(vz-vn*nz)
 
             weight = jacobianb(ibb,j,ib)*wzgll(j)
 
             !if(LMX(i,j,ispec)/=0) then
               !rhs(1,LMX(i,j,ispec)) = rhs(1,LMX(i,j,ispec)) - tx*weight
-              rhs(1,iglob) = rhs(1,iglob) - tx*weight
-            !accel(2,iglob) = accel(2,iglob) - ty*weight
+              rhs(1,ID(1,iglob)) = rhs(1,ID(1,iglob)) - tx*weight
+              rhs(1,ID(2,iglob)) = rhs(1,ID(2,iglob)) - ty*weight
             !endif
             !if(LMZ(i,j,ispec)/=0) then
               !rhs(1,iglob+NGLOB) = rhs(1,LMZ(i,j,ispec)) - tz*weight
-              rhs(1,iglob+NGLOB) = rhs(1,iglob+NGLOB) - tz*weight
+              rhs(1,ID(3,iglob)) = rhs(1,ID(3,iglob)) - tz*weight
             !endif
           enddo
         enddo
@@ -268,9 +267,12 @@ contains
         print *,"add source"
         do isource = 1, nsources
           iglob = sglob(isource)
-          !print *,"source,ID",ID(1,iglob),ID(2,iglob)
-          rhs(1,ID(1,iglob)) = rhs(1,ID(1,iglob)) + samp(itime,1,isource) 
-          rhs(1,ID(2,iglob)) = rhs(1,ID(2,iglob)) + samp(itime,3,isource)
+          !print *,"source,P_SV,ID",ID(1,iglob),ID(2,iglob)
+          if(iglob.ne.0)then
+            rhs(1,ID(1,iglob)) = rhs(1,ID(1,iglob)) + samp(itime,1,isource) 
+            rhs(1,ID(2,iglob)) = rhs(1,ID(2,iglob)) + samp(itime,2,isource)
+            rhs(1,ID(3,iglob)) = rhs(1,ID(3,iglob)) + samp(itime,3,isource)
+          endif
         enddo
       endif
 
@@ -304,30 +306,34 @@ contains
       endif
 
 
-      call assemble_MPI_mass(mass_vector(:))
-      call assemble_MPI_vector(rhs(:))
-
+      call assemble_MPI_mass(mass_global,nglob, &
+                    ninterface,  max_ibool_interfaces_size, &
+                    ibool_interfaces, nibool_interfaces,
+                    my_neighbours)
+      call assemble_MPI_vector(rhs,nglob,ID, &
+                      ninterface, max_ibool_interfaces_size,&
+                      ibool_interfaces, nibool_interfaces, &
+                      tab_requests_send_recv, &
+                      buffer_send_faces_vector,&
+                      buffer_recv_faces_vector,&
+                      my_neighbour)
       ! above here accel(:) are actually the RHS!
       ! divide by the mass matrix
       if(.not.IM_TRUE) then
         do i=1,NGLOB
-          if(ID(1,i)/=0)then
-            accel(1,i) = rhs(1,ID(1,i))/mass_global(i)
-          endif
-          if(ID(2,i)/=0)then
-            !accel(2,i) = accel(2,i)/mass_global(i)
-            accel(3,i) = rhs(1,ID(2,i))/mass_global(i)
-            !print *, "ID,rhs,accel",ID(2,i),rhs(1,ID(2,i)),accel(3,i)
+          do j=1,3 !3 dimension
+          if(ID(j,i)/=0)then
+            accel(j,i) = rhs(1,ID(j,i))/mass_global(i)
           endif
         end do
       endif
 
-      if(IM_TRUE) then
-        !do d
-        a_global=transpose(matmul(inv_MK,transpose(rhs)))
-        accel(1,:)=a_global(1,1:NGLOB)
-        accel(3,:)=a_global(1,(NGLOB+1):(2*NGLOB))
-      endif
+      !if(IM_TRUE) then
+      !  !do d
+      !  a_global=transpose(matmul(inv_MK,transpose(rhs)))
+      !  accel(1,:)=a_global(1,1:NGLOB)
+      !  accel(3,:)=a_global(1,(NGLOB+1):(2*NGLOB))
+      !endif
 
       !if(SIMUL_TYPE==2) then
       !  do i=1,NGLOB
@@ -391,7 +397,9 @@ contains
   end
 
 !-----------------------------------------------
-  subroutine init_stiff_matrix()
+  subroutine init_stiff_matrix_PSV(Stiff)
+
+    double precision :: Stiff(:,:)
 
     integer ispec,i,j,ii,jj
     integer :: ilocal
@@ -400,7 +408,6 @@ contains
     double precision, dimension(2*NGLLSQUARE,2*NGLLSQUARE) :: temp_BDB
     double precision :: fac
     !calculate the stiffness matrix. once and for all
-    Stiff(:,:) = 0.
 
     do ispec = 1,NSPEC
 
@@ -473,15 +480,103 @@ contains
       enddo
 
       !ensemble the K matrix
-      call ensem(ispec)
+      call ensem(ispec, Stiff_e, Stiff, "PSV")
 
     enddo
-  end subroutine init_stiff_matrix
+  end subroutine init_stiff_matrix_PSV
+
+  subroutine init_stiff_matrix_SH(Stiff)
+
+    double precision :: Stiff(:,:)
+
+    integer ispec,i,j,ii,jj
+    integer :: ilocal
+    double precision :: M_B(2,NGLLSQUARE)
+    double precision, dimension(2,NGLLSQUARE) :: temp_DB
+    double precision, dimension(NGLLSQUARE,NGLLSQUARE) :: temp_BDB
+    double precision :: fac
+    !calculate the stiffness matrix. once and for all
+
+    do ispec = 1,NSPEC
+
+      ! first double loop over GLL 
+      ! compute and store B
+      Stiff_e(:,:)=0.
+
+      do j = 1,NGLLZ
+        do i = 1,NGLLX
+          !iglob2 = ibool(i,j,ispec)
+          M_B(:,:) = 0.
+          !compute M_B at every node in one element
+          !integal them together: M_B(i,j)*jacobian*wgll
+          do jj = 1,NGLLZ
+            do ii=1,NGLLX
+            !calculate B matrix for every node: M_Bode
+              ilocal = NGLLX*(jj-1)+ii
+              if(jj.eq.j) then
+                !M_B(1,ilocal)=dxidxl(i,j,ispec)*hprime_xx(ii,i)
+                M_B(1,ilocal)=dxidx(i,j,ispec)*hprime_xx(ii,i)
+                !+dgammadxl(i,j,ispec)*hprime_zz(jj,j)
+              end if
+              if(ii.eq.i) then
+                !M_B(2,ilocal+NGLLS) = dxidzl(i,j,ispec)*hprime_xx(ii,i)+dgammadzl(i,j,ispec)*hprime_zz(jj,j)
+                M_B(2,ilocal) = dgammadz(i,j,ispec)*hprime_zz(jj,j)
+              end if
+            enddo
+          enddo
+
+           !print *,"-------------------"
+           !print *, "dxidx"
+           !print *, dxidx(:,:,ispec)
+           !print *,"hprime_xx"
+           !print *,hprime_xx(:,:)
+
+           !print *,"-------------------"
+           !print *,"-------------------"
+           !print *, NGLLS
+          !print *,"ispec=",ispec
+           !print *,"i=:",i,"j=:",j
+           !print *,"M_B:"
+           !do itemp=1,3
+           !  print *,M_B(itemp,1:NGLLS)
+           !  print *,"-------------------"
+           !  print *,M_B(itemp,(NGLLS+1):2*NGLLS)
+           !print *,"-------------------"
+           !enddo
+           !print *,"-------------------"
+
+          kappal = kappa(i,j,ispec)
+          mul = mu(i,j,ispec)
+          lambdalplus2mul = kappal + FOUR_THIRDS * mul
+          lambdal = lambdalplus2mul - 2.*mul
+
+          D = reshape((/mul,dble(0.),dble(0.),mul/),(/2,2/))
+          !print *,"-------------------"
+          !print *,"D"
+          !print *,D
+          !print *,"-------------------"
+            
+          temp_DB=matmul(D,M_B)
+          temp_BDB=matmul(transpose(M_B),temp_DB)
+
+          fac=jacobian(i,j,ispec)*wxgll(i)*wzgll(j)
+
+          Stiff_e=Stiff_e+temp_BDB*fac
+        enddo
+      enddo
+
+      !ensemble the K matrix
+      call ensem(ispec, Stiff_e, Stiff, "SH")
+
+    enddo
+  end subroutine init_stiff_matrix_PSV
 
 !---------------------------------------------
-  subroutine ensem(ispec)
+  subroutine ensem(ispec, Stiff_e, Stiff, wave_type)
 
     integer :: ispec
+    double precision :: Stiff_e(:,:), Stiff(:,:)
+    character(len=*) :: wave_type
     
     integer :: i,j
     integer :: ii,jj
@@ -489,11 +584,12 @@ contains
     integer :: ilocal1,ilocal2
 
     !over one column 
-    do j=1,NGLLZ
-      do i=1,NGLLX
-        !over one row
-        do jj=1,NGLLZ
-          do ii=1,NGLLX
+    if(trim(wave_type).eq."PSV")then
+      do j=1,NGLLZ
+        do i=1,NGLLX
+          !over one row
+          do jj=1,NGLLZ
+            do ii=1,NGLLX
 !            iglobal1=ibool(i,j,ispec)
 !            ilocal1=(j-1)*NGLLX+i
 !            iglobal2=ibool(ii,jj,ispec)
@@ -503,33 +599,51 @@ contains
 !            Stiff(iglobal1+NGLOB,iglobal2+NGLOB)=Stiff(iglobal1+NGLOB,iglobal2+NGLOB)+Stiff_e(ilocal1+NGLLS,ilocal2+NGLLS)
 !            Stiff(iglobal1+NGLOB,iglobal2)=Stiff(iglobal1+NGLOB,iglobal2)+Stiff_e(ilocal1+NGLLS,ilocal2)
 !            Stiff(iglobal1,iglobal2+NGLOB)=Stiff(iglobal1,iglobal2+NGLOB)+Stiff_e(ilocal1,ilocal2+NGLLS)
-            ilocal2=(jj-1)*NGLLX+ii
-            ilocal1=(j-1)*NGLLX+i
-
-            iglobal1_x=LMX(i,j,ispec)
-            iglobal2_x=LMX(ii,jj,ispec)
-            iglobal1_z=LMZ(i,j,ispec)
-            iglobal2_z=LMZ(ii,jj,ispec)
+              ilocal2=(jj-1)*NGLLX+ii
+              ilocal1=(j-1)*NGLLX+i
+              iglobal1_x=ID(1,ibool(i,j,ispec))
+              iglobal2_x=ID(1,ibool(ii,jj,ispec))
+              iglobal1_z=ID(3,ibool(i,j,ispec))
+              iglobal2_z=ID(3,ibool(ii,jj,ispec))
             
-            if((iglobal1_x/=0).and.(iglobal2_x/=0))then
-              Stiff(iglobal1_x,iglobal2_x)=Stiff(iglobal1_x,iglobal2_x)+Stiff_e(ilocal1,ilocal2)
-            endif
-            if((iglobal1_x/=0).and.(iglobal2_z/=0))then
-              Stiff(iglobal1_x,iglobal2_z)=Stiff(iglobal1_x,iglobal2_z)+Stiff_e(ilocal1,ilocal2+NGLLS)
-            endif
-            if((iglobal1_z/=0).and.(iglobal2_x/=0))then
-              Stiff(iglobal1_z,iglobal2_x)=Stiff(iglobal1_z,iglobal2_x)+Stiff_e(ilocal1+NGLLS,ilocal2)
-            endif
-            if((iglobal1_z/=0).and.(iglobal2_z/=0))then
-              Stiff(iglobal1_z,iglobal2_z)=Stiff(iglobal1_z,iglobal2_z)+Stiff_e(ilocal1+NGLLS,ilocal2+NGLLS)
-            endif
+              if((iglobal1_x/=0).and.(iglobal2_x/=0))then
+                Stiff(iglobal1_x,iglobal2_x)=Stiff(iglobal1_x,iglobal2_x)+Stiff_e(ilocal1,ilocal2)
+              endif
+              if((iglobal1_x/=0).and.(iglobal2_z/=0))then
+                Stiff(iglobal1_x,iglobal2_z)=Stiff(iglobal1_x,iglobal2_z)+Stiff_e(ilocal1,ilocal2+NGLLS)
+              endif
+              if((iglobal1_z/=0).and.(iglobal2_x/=0))then
+                Stiff(iglobal1_z,iglobal2_x)=Stiff(iglobal1_z,iglobal2_x)+Stiff_e(ilocal1+NGLLS,ilocal2)
+              endif
+              if((iglobal1_z/=0).and.(iglobal2_z/=0))then
+                Stiff(iglobal1_z,iglobal2_z)=Stiff(iglobal1_z,iglobal2_z)+Stiff_e(ilocal1+NGLLS,ilocal2+NGLLS)
+              endif
+            enddo
           enddo
         enddo
       enddo
-    enddo
+    else if(trim(wave_type).eq."SH")then
+      do j=1,NGLLZ
+        do i=1,NGLLX
+          !over one row
+          do jj=1,NGLLZ
+            do ii=1,NGLLX
+              ilocal2=(jj-1)*NGLLX+ii
+              ilocal1=(j-1)*NGLLX+i
+              iglobal1_y=ID(2,ibool(i,j,ispec))
+              iglobal2_y=ID(2,ibool(ii,jj,ispec))
+              if((iglobal1_y/=0).and.(iglobal2_y/=0))then
+                Stiff(iglobal1_y,iglobal2_y)=Stiff(iglobal1_y,iglobal_y)+Stiff_e(ilocal1,ilocal2)
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    else
+      print *, "Ensemble Erro: type incorrect"
+      stop
+    endif
             
-
-
   end subroutine ensem
 
 !---------------------------------------------
