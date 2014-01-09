@@ -1,6 +1,7 @@
 module wave2d_define_der_matrices
 
-  use wave2d_constants
+  use constants
+  !include "constants.h"
 
 contains
 

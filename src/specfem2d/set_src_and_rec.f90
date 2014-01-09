@@ -1,5 +1,10 @@
 module set_src_and_rec
 
+  use mpi
+  use constants
+
+  implicit none
+  !include "constants.h"
 
 contains
 
@@ -7,11 +12,12 @@ contains
         nrec, x_rec, z_rec, rank, nproc, comm)
 
     integer :: ns, nrec
-    double precision :: x_src(:), z_src(:)
-    double precision :: x_rec(:), z_rec(:)
+    double precision, allocatable :: x_src(:), z_src(:)
+    double precision, allocatable :: x_rec(:), z_rec(:)
+    integer :: rank, nproc, comm
 
     integer :: IIN=110
-    integer :: i,j
+    integer :: i, j, ierr
 
     !=========
     !read src in master node
@@ -65,6 +71,7 @@ contains
     integer :: sglob(:), rglob(:)
     double precision :: x_src(:), z_src(:), x_rec(:), z_rec(:)
     integer :: rank, nproc, comm
+    integer :: min_proc
     
     integer :: i
     double precision :: short_dist
@@ -84,13 +91,16 @@ contains
   subroutine find_close_grid_point(x,z,ibool,x_target,z_target,short_dist,&
                 target_glob, min_proc, rank, nproc, comm)
 
+    use wave2d_variables, only:NEX, NEZ
+
     double precision,intent(in) :: x(:), z(:)
     integer,intent(in) :: ibool(:,:,:)
-    double precision, intent(in) :: x_target, z_target, short_dist
+    double precision, intent(in) :: x_target, z_target
+    double precision :: short_dist
     integer :: target_glob
     integer :: rank, nproc, comm
 
-    integer :: i, j, ix, iz, ispec, iglob
+    integer :: i, j,ii,jj, ix, iz, ispec, iglob
     integer :: min_proc
     double precision :: dist_temp
     double precision :: dist_temp_array(nproc)
@@ -102,13 +112,13 @@ contains
     do j=1, NEZ
       do i=1, NEX
         ispec=ispec+1
-        do j=1, NGLLZ
-          do i=1, NGLLX
-            iglob=ibool(i,j,ispec)
-            dist_temp=distance(x(iglob), z(iglob), x_rec, z_rec)
+        do jj=1, NGLLZ
+          do ii=1, NGLLX
+            iglob=ibool(ii,jj,ispec)
+            dist_temp=distance(x(iglob), z(iglob), x_target, z_target)
             if(dist_temp.lt.short_dist)then
-              short_dist=dits_temp
-              target_glob=ibool(i,j,ispec)
+              short_dist=dist_temp
+              target_glob=ibool(ii,jj,ispec)
             endif
           enddo
         enddo

@@ -1,9 +1,12 @@
 module wave2d_variables
 
- include "constants.h" 
+  use constants
+ !include "constants.h" 
 
 !simulation type
 !1)dynamic relaxation 2)wave simulation
+  integer :: SIMUL_TYPE
+  logical :: DEBUG
   logical :: SOURCE_FLAG 
   logical :: FORCE_FLAG
   logical :: DAMP_FLAG
@@ -30,8 +33,14 @@ module wave2d_variables
 
 
 !mesh info
-  integer :: NEX, NEZ
-  integer :: NELE, NGLLSQUARE, NGLOB
+  integer :: NEX, NEZ, NGLL
+  integer :: NELE, NGLLSQUARE
+  !integer :: NPROC_XI, NPROC_ZI
+
+!time marching info
+  double precision :: DT
+  integer :: NSTEP
+  double precision :: RECORD_LENGTH_IN_SECONDS
 
 !some matrix
   !double precision, dimension(2*NGLLSQUARE,2*NGLLSQUARE) :: Stiff_e
@@ -51,8 +60,6 @@ module wave2d_variables
   double precision, dimension(NGLLZ,NGLLZ) :: hprime_zz
   double precision, dimension(NGLLX,NGLLZ) :: wgllwgll_xz
 
-!jacobian
-  double precision, dimension(:,:,:) :: jacobian
 
 ! anchors
 !  double precision, dimension(NSPEC) :: z1,z2
@@ -68,15 +75,16 @@ module wave2d_variables
   integer, dimension(:,:), allocatable     :: ibelm
 
 !mesh info
-  integer :: nglob, nspec, nspecb(4), ninterface
-  integer, allocatable :: my_neighbour(:), nibool_interfaces(:)
+  integer :: NGLOB, NSPEC, nspecb(4), ninterface
+  integer, allocatable :: my_neighbours(:), nibool_interfaces(:)
   integer, allocatable :: ibool_interfaces(:,:)
+  integer :: max_ibool_interfaces_size
 
 ! Jacobian matrix and Jacobian
-!  double precision dxidxl,dxidzl,dgammadxl,dgammadzl,jacobianl
-!  double precision, dimension(NGLLX,NGLLZ,NSPEC) :: dxidx,dxidz,dgammadx,dgammadz,jacobian
-!  double precision, dimension(NGLLX,NGLLZ,NSPEC) :: dxdxi,dzdxi,dxdgamma,dzdgamma
-!  double precision, dimension(4,NGLL,NELE) :: jacobianb
+  double precision dxidxl,dxidzl,dgammadxl,dgammadzl,jacobianl
+  double precision, dimension(:,:,:), allocatable :: dxidx,dxidz,dgammadx,dgammadz,jacobian
+  double precision, dimension(:,:,:), allocatable :: dxdxi,dzdxi,dxdgamma,dzdgamma
+  double precision, dimension(:,:,:), allocatable :: jacobianb
 !  integer :: nspecb(4)
 
 ! absorbing boundary conditions
@@ -89,7 +97,7 @@ module wave2d_variables
 
 ! time marching
   !double precision :: DT
-  double precision :: dh,time_step
+!  double precision :: dh,time_step
 
 ! displacement, velocity and acceleration
  
@@ -108,10 +116,10 @@ module wave2d_variables
   double precision hdur
 
 ! file open or write status variable
-  integer ios
+!  integer ios
 
 ! number of time steps to store wavefield
-  integer NINT 
+!  integer NINT 
 
 
 end module wave2d_variables

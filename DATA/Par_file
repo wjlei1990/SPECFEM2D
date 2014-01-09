@@ -19,8 +19,8 @@ LOCAL_PATH                   = ./DATABASES_MPI
 #path to store the seismograms
 OUTPUT_PATH                  = ./OUTPUT
 
-#record length in minutes
-RECORD_LENGTH_IN_MINUTES     = 10.0
+#record length in seconds
+RECORD_LENGTH_IN_SECONDS     = 10.0d+1
 
 #simulation time step
 DT                           = 4.0d-3

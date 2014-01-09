@@ -1,3 +1,10 @@
+module mesh_io
+
+ use constants
+ implicit none
+
+contains
+
 subroutine read_mesh_init(iproc,NEX,NEZ,nglob,nspec,nspecb, &
     ninterface)
 
@@ -5,7 +12,7 @@ subroutine read_mesh_init(iproc,NEX,NEZ,nglob,nspec,nspecb, &
   integer ::NEX,NEZ
   integer ::nglob
   integer ::nspec
-  integer, dimension(4) ::nsepcb
+  integer, dimension(4) ::nspecb
   integer ::ninterface
 
   !local variable
@@ -13,7 +20,7 @@ subroutine read_mesh_init(iproc,NEX,NEZ,nglob,nspec,nspecb, &
   integer ::ios
   
 
-  write(*,*) 'save the database'
+  write(*,*) 'read the database'
   write(infile,"(('MESHINFO',i5.5))") iproc
   open(iproc,FILE=trim(infile),status='unknown',iostat=ios)
   if(ios /= 0) stop 'Error in openning the database file'
@@ -34,11 +41,11 @@ subroutine read_array(iproc,NEX,NEZ,nglob,nspec,nspecb, &
   integer, dimension(NGLLX,NGLLZ,nspec)::ibool
   double precision,dimension(nglob) ::x,z
   integer ::nspec
-  integer, dimension(4) ::nsepcb
-  integer,dimension(:,:), intent(in) ::ibelm
+  integer, dimension(4) ::nspecb
+  integer,dimension(:,:) ::ibelm
   integer ::ninterface
   integer, dimension(ninterface) ::my_neighbour,nibool_interfaces
-  integer,dimension(:,:),intent(in) ::ibool_interfaces
+  integer,dimension(:,:) ::ibool_interfaces
 
   !local variable
   integer ::iglob,ispec
@@ -61,3 +68,5 @@ subroutine read_array(iproc,NEX,NEZ,nglob,nspec,nspecb, &
   end do
   close(iproc)
 end subroutine read_array
+
+end module mesh_io

@@ -24,6 +24,7 @@ contains
       FORCE_FLAG=.false.
       DAMP_FLAG=.false.
       ABSORB_FLAG=.true.
+      IM_TRUE=.false.
       !if(IM_TRUE)then
       !Current version of specfem2d only supports explicit
         S_ALPHA=0.5
@@ -34,7 +35,7 @@ contains
     else
       print *,"SIMUL_TYPE incorrect; Abort"
       call MPI_Abort(comm, errorcode,ierr)
-      endif
+      !endif
     endif
 
   end subroutine set_simulation_flag

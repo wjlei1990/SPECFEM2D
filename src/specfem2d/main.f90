@@ -1,14 +1,17 @@
 program wave2d
 
+  use set_src_and_rec
   use wave2d_variables
   use wave2d_solver
-  use wave2d_sub
+  use mesh_io
+  use wave2d_io_subs
   use simulation_type
+  !use wave2d_write_seismo_subs
 
   use mpi
 
   implicit none
-  include "constants.h"
+  !include "constants.h"
 
   !src and receiver
   integer :: ns, nrec
@@ -26,16 +29,15 @@ program wave2d
   !double precision, dimension(:,:,:,:,:), allocatable :: absorb_field
 
   !Par_file var
-  integer :: SIMUL_TYPE
-  integer :: NEX, NEZ, NELE, NPROC_XI, NPROC_ZI, NSTEP
-  character(len=300) :: LOCAL_PATH, OUTPUT_PATH, MODEL_TYPE
-  double precision :: RECORD_LENGTH_IN_MINUTES, DT, LENGTH, HEIGHT
-  double precision :: DENSITY, IMCOMPRESSIBILITY, RIGIDITY
-  logical :: DEBUG
+  !integer :: NEX, NEZ, NELE, NPROC_XI, NPROC_ZI, NSTEP
+  character(len=300) :: LOCAL_PATH, OUTPUT_PATH
+  !double precision :: DENSITY, IMCOMPRESSIBILITY, RIGIDITY
+  !logical :: DEBUG
 
   !MPI env var
   integer :: rank, nproc, comm
   integer :: ierr
+  integer :: itime
 
   !********* PROGRAM STARTS HERE *********************
   call MPI_init(ierr)
@@ -43,9 +45,7 @@ program wave2d
   call MPI_Comm_rank(comm, rank, ierr)
   call MPI_Comm_size(comm, nproc, ierr)
 
-  call read_parfile(SIMUL_TYPE, NEX, NEZ, NPROC_XI, NPROC_ZI, LOCAL_PATH, &
-        OUTPUT_PATH, RECORD_LENGTH_IN_MINUTES, NSTEP, DT, LENGTH, HEIGHT, &
-				MODEL_TYPE, DENSITY, INCOMRESSIBILITY, RIGIDITY, DEBUG)
+  call read_parfile(LOCAL_PATH, OUTPUT_PATH, rank, nproc, comm)
 
   !=================
   !setup
@@ -67,19 +67,19 @@ program wave2d
   allocate(z(nglob))
   allocate(ibool(NGLLX,NGLLZ,nspec))
   allocate(ibelm(4,NELE))
-  allocate(my_neighbour(8))
+  allocate(my_neighbours(8))
   allocate(nibool_interfaces(8))
   allocate(ibool_interfaces(8,NELE))
   
   call read_array(rank,NEX,NEZ,nglob,nspec,nspecb,ninterface,&
-        x,z,ibool,ibelm,my_neighbour,nibool_interfaces,ibool_interfaces)
+        x,z,ibool,ibelm,my_neighbours,nibool_interfaces,ibool_interfaces)
   !call set_model_property()
   !stop
 
   call read_src_and_rec(ns, x_src, z_src, nrec, x_rec, z_rec, &
         rank, nproc, comm)
-  call locate_src_and_rec(ns, sglob, x_src, z_src, nrec, rglob, &
-      x_rec, z_rec, x, z, rank, nproc, comm)
+  call locate_src_and_rec(x, z, ibool, ns, sglob, x_src, z_src, &
+        nrec, rglob, x_rec, z_rec, rank, nproc, comm)
 
   !===================
   !locate source and receiver
@@ -105,16 +105,13 @@ program wave2d
   ! solver for forward wavefield
   print *, 'Start simulation ...'
   call solver(ns, sglob, samp, nrec, rglob, syn, &
-    NEX, NEZ, NELE, nglob, nspec, nspecb, ninterface,&
-    x,z,ibool, ID, ibelm, &
-    my_neighbour, nibool_interfaces, ibool_interfaces,&
     rank, nproc, comm)
 
   print *, 'Write out seismograms at the receiver ...'
-  call write_seismogram(syn, nrec, trim(out_dir)//'seismograms')
+  call write_seismogram(syn, rglob, nrec, DT, NSTEP, OUTPUT_PATH)
 
   ! deallocate variables
-  deallocate(sglob,samp,x_source,z_source,rglob,syn,x_rec,z_rec)
+  deallocate(sglob,samp,x_src,z_src,rglob,syn,x_rec,z_rec)
 
   call MPI_Barrier(comm,ierr)
   call MPI_Finalize(ierr)

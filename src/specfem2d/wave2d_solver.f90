@@ -1,16 +1,16 @@
 module wave2d_solver
 
   implicit none
-  include "constants.h"
+  !include "constants.h"
 
 contains
 !---------------------------------------------
 
   subroutine solver(nsources, sglob, samp, nreceivers, rglob, ramp, &
-        DT, NSTEP, rank, nproc, comm)
+        rank, nproc, comm)
 
     use wave2d_variables
-    use wave2d_define_der_matrices
+    !use wave2d_define_der_matrices
     !use wave2d_mesher
     !use solve_eg
 
@@ -32,8 +32,8 @@ contains
     double precision, dimension(1, 3*NGLOB) :: rhs
    
     !time marching info
-    double precision :: DT
-    integer :: NSTEP
+    !double precision :: DT
+    !integer :: NSTEP
     double precision :: deltat,deltatover2,deltatsqover2,deltatsq
 
     integer ispec,ib,i,j,k,iglob, iglob1, iglob2,itime,ix,iz, itime1, itime2, itime0
@@ -57,10 +57,10 @@ contains
     character(len=10) :: rhs3_name,rhs1_name,rhs2_name
 
     ! grid points per wavelength estimation 
-    c = sqrt((INCOMPRESSIBILITY+FOUR_THIRDS*RIGIDITY)/DENSITY)
-    print *, 'number of grid points per wavelength for P: ', floor(hdur*c/dh)
-    c = sqrt(RIGIDITY/DENSITY)
-    print *, 'number of grid points per wavelength for S:', floor(hdur*c/dh)
+    !c = sqrt((INCOMPRESSIBILITY+FOUR_THIRDS*RIGIDITY)/DENSITY)
+    !print *, 'number of grid points per wavelength for P: ', floor(hdur*c/dh)
+    !c = sqrt(RIGIDITY/DENSITY)
+    !print *, 'number of grid points per wavelength for S:', floor(hdur*c/dh)
 
     !NINT = NSTEP/NSAVE
     !if (NINT * NSAVE > NSTEP) stop 'NSTEP should equal to NINT * NSAVE'
@@ -118,7 +118,7 @@ contains
     !endif
     !stop
 
-    if(DEBUG_SOLVER)then
+    if(DEBUG)then
       open(21,file="stiff")
       do i=1,NGLOB
         write(21,*) Stiff(i,:)
@@ -159,7 +159,7 @@ contains
       rhs(1:1,1:N_EQ)=transpose(-matmul(Stiff(1:N_EQ,1:N_EQ),transpose(d_global(1:1,1:N_EQ))))
 
 
-      if(DEBUG_SOLVER)then
+      if(DEBUG)then
         open(22,file="rhs1")
         write(22,*)rhs(:,:)
       endif
@@ -206,21 +206,20 @@ contains
       if(ABSORB_FLAG) then
         print *,"add absorb boundary condition"
         call add_absorb_bc(rhs, veloc)
-      enddo
 
-      if(DEBUG_SOLVER)then
-        write(rhs3_name,'(i4)') itime
-        rhs3_name=adjustl(rhs3_name)
-        rhs3_name='rhs2_'//trim(rhs3_name)
-        write(*,*) rhs3_name
-        open(23,file=rhs3_name)
-        do i=1,NGLOB
-          write(23,*) i,"x",rhs(1,i)
-          write(23,*) i,"z",rhs(1,i+NGLOB)
-        enddo
+        if(DEBUG)then
+          write(rhs3_name,'(i4)') itime
+          rhs3_name=adjustl(rhs3_name)
+          rhs3_name='rhs2_'//trim(rhs3_name)
+          write(*,*) rhs3_name
+          open(23,file=rhs3_name)
+          do i=1,NGLOB
+            write(23,*) i,"x",rhs(1,i)
+            write(23,*) i,"z",rhs(1,i+NGLOB)
+          enddo
+        endif
       endif
       !end absorb boudary condition
-      endif
 
       
       ! add source
@@ -243,7 +242,7 @@ contains
         enddo
       endif
 
-      if(DEBUG_SOLVER)then
+      if(DEBUG)then
         write(rhs3_name,'(i4)') itime
         rhs3_name=adjustl(rhs3_name)
         rhs3_name='rhs3_'//trim(rhs3_name)
@@ -272,27 +271,27 @@ contains
         enddo
       endif
 
-
+      max_ibool_interfaces_size=max(NEX*NGLLX, NEZ*NGLLZ)
       call assemble_MPI_mass(mass_global,nglob, &
                     ninterface,  max_ibool_interfaces_size, &
-                    ibool_interfaces, nibool_interfaces,
+                    ibool_interfaces, nibool_interfaces, &
                     my_neighbours)
       call assemble_MPI_vector(rhs,nglob,ID, &
                       ninterface, max_ibool_interfaces_size,&
                       ibool_interfaces, nibool_interfaces, &
-                      tab_requests_send_recv, &
-                      buffer_send_faces_vector,&
-                      buffer_recv_faces_vector,&
-                      my_neighbour)
+                      !buffer_send_faces_vector,&
+                      !buffer_recv_faces_vector,&
+                      my_neighbours)
       ! above here accel(:) are actually the RHS!
       ! divide by the mass matrix
       if(.not.IM_TRUE) then
         do i=1,NGLOB
           do j=1,3 !3 dimension
-          if(ID(j,i)/=0)then
-            accel(j,i) = rhs(1,ID(j,i))/mass_global(i)
-          endif
-        end do
+            if(ID(j,i)/=0)then
+              accel(j,i) = rhs(1,ID(j,i))/mass_global(i)
+            endif
+          enddo
+        enddo
       endif
 
       !if(IM_TRUE) then
@@ -363,20 +362,41 @@ contains
       sign1=0
     endif
     return
-  end
+  end function sign1
 
 !-----------------------------------------------
   subroutine init_stiff_matrix_PSV(Stiff)
 
+    use wave2d_variables
+
     double precision :: Stiff(:,:)
+    double precision :: Stiff_e(2*NGLLSQUARE, 2*NGLLSQUARE)
 
     integer ispec,i,j,ii,jj
     integer :: ilocal
+    double precision :: D(3,3)
     double precision :: M_B(3,2*NGLLSQUARE)
     double precision, dimension(3,2*NGLLSQUARE) :: temp_DB
     double precision, dimension(2*NGLLSQUARE,2*NGLLSQUARE) :: temp_BDB
     double precision :: fac
     !calculate the stiffness matrix. once and for all
+    
+    ! Gauss-Lobatto-Legendre points of integration
+    !double precision, dimension(NGLLX) :: xigll
+    !double precision, dimension(NGLLZ) :: zigll
+
+    ! weights
+    !double precision, dimension(NGLLX) :: wxgll
+    !double precision, dimension(NGLLZ) :: wzgll
+
+    ! array with derivatives of Lagrange polynomials
+    !double precision, dimension(NGLLX,NGLLX) :: hprime_xx
+    !double precision, dimension(NGLLZ,NGLLZ) :: hprime_zz
+    !double precision, dimension(NGLLX,NGLLZ) :: wgllwgll_xz
+
+
+    !call define_derivative_matrics(xigll, zigll, wzgll, hprime_xx, &
+    !      hprime_zz, wgllwgll_xz)
 
     do ispec = 1,NSPEC
 
@@ -401,12 +421,12 @@ contains
               end if
               if(ii.eq.i) then
                 !M_B(2,ilocal+NGLLS) = dxidzl(i,j,ispec)*hprime_xx(ii,i)+dgammadzl(i,j,ispec)*hprime_zz(jj,j)
-                M_B(2,ilocal+NGLLS) = dgammadz(i,j,ispec)*hprime_zz(jj,j)
+                M_B(2,ilocal+NGLLSQUARE) = dgammadz(i,j,ispec)*hprime_zz(jj,j)
               end if
             enddo
           enddo
-          M_B(3,1:NGLLS) = M_B(2,(NGLLS+1):2*NGLLS)
-          M_B(3,(NGLLS+1):2*NGLLS)= M_B(1,1:NGLLS)
+          M_B(3,1:NGLLSQUARE) = M_B(2,(NGLLSQUARE+1):2*NGLLSQUARE)
+          M_B(3,(NGLLSQUARE+1):2*NGLLSQUARE)= M_B(1,1:NGLLSQUARE)
 
            !print *,"-------------------"
            !print *, "dxidx"
@@ -456,10 +476,14 @@ contains
 
   subroutine init_stiff_matrix_SH(Stiff)
 
+    use wave2d_variables
+
     double precision :: Stiff(:,:)
+    double precision :: Stiff_e(NGLLSQUARE, NGLLSQUARE)
 
     integer ispec,i,j,ii,jj
     integer :: ilocal
+    double precision :: D(2,2)
     double precision :: M_B(2,NGLLSQUARE)
     double precision, dimension(2,NGLLSQUARE) :: temp_DB
     double precision, dimension(NGLLSQUARE,NGLLSQUARE) :: temp_BDB
@@ -538,7 +562,7 @@ contains
       call ensem(ispec, Stiff_e, Stiff, "SH")
 
     enddo
-  end subroutine init_stiff_matrix_PSV
+  end subroutine init_stiff_matrix_SH
 
 !---------------------------------------------
   subroutine ensem(ispec, Stiff_e, Stiff, wave_type)
@@ -551,7 +575,8 @@ contains
     
     integer :: i,j
     integer :: ii,jj
-    integer :: iglobal1_x,iglobal1_z,iglobal2_x,iglobal2_z
+    integer :: iglobal1_x,iglobal1_z, iglobal2_x,iglobal2_z
+    integer :: iglobal1_y,iglobal2_y
     integer :: ilocal1,ilocal2
 
     !over one column 
@@ -581,13 +606,13 @@ contains
                 Stiff(iglobal1_x,iglobal2_x)=Stiff(iglobal1_x,iglobal2_x)+Stiff_e(ilocal1,ilocal2)
               endif
               if((iglobal1_x/=0).and.(iglobal2_z/=0))then
-                Stiff(iglobal1_x,iglobal2_z)=Stiff(iglobal1_x,iglobal2_z)+Stiff_e(ilocal1,ilocal2+NGLLS)
+                Stiff(iglobal1_x,iglobal2_z)=Stiff(iglobal1_x,iglobal2_z)+Stiff_e(ilocal1,ilocal2+NGLLSQUARE)
               endif
               if((iglobal1_z/=0).and.(iglobal2_x/=0))then
-                Stiff(iglobal1_z,iglobal2_x)=Stiff(iglobal1_z,iglobal2_x)+Stiff_e(ilocal1+NGLLS,ilocal2)
+                Stiff(iglobal1_z,iglobal2_x)=Stiff(iglobal1_z,iglobal2_x)+Stiff_e(ilocal1+NGLLSQUARE,ilocal2)
               endif
               if((iglobal1_z/=0).and.(iglobal2_z/=0))then
-                Stiff(iglobal1_z,iglobal2_z)=Stiff(iglobal1_z,iglobal2_z)+Stiff_e(ilocal1+NGLLS,ilocal2+NGLLS)
+                Stiff(iglobal1_z,iglobal2_z)=Stiff(iglobal1_z,iglobal2_z)+Stiff_e(ilocal1+NGLLSQUARE,ilocal2+NGLLSQUARE)
               endif
             enddo
           enddo
@@ -604,7 +629,7 @@ contains
               iglobal1_y=ID(2,ibool(i,j,ispec))
               iglobal2_y=ID(2,ibool(ii,jj,ispec))
               if((iglobal1_y/=0).and.(iglobal2_y/=0))then
-                Stiff(iglobal1_y,iglobal2_y)=Stiff(iglobal1_y,iglobal_y)+Stiff_e(ilocal1,ilocal2)
+                Stiff(iglobal1_y,iglobal2_y)=Stiff(iglobal1_y,iglobal2_y)+Stiff_e(ilocal1,ilocal2)
               endif
             enddo
           enddo
@@ -619,9 +644,13 @@ contains
 
   subroutine add_absorb_bc(rhs, veloc)
 
+      use wave2d_variables
+
+      double precision :: rhs(:,:), veloc(:,:)
       !absorbing boundary conditions
       integer :: j1,j2, ib, ibb
       double precision :: nx,nz,vx,vy,vz,vn,rho_vp,rho_vs,tx,ty,tz,weight
+      integer :: i, ispec, j, iglob
 
       do ibb = 1, 3
         if (ibb == 1) then
@@ -677,6 +706,7 @@ contains
             !endif
           enddo
         enddo
+      enddo
   end subroutine add_absorb_bc
 !---------------------------------------------
 
