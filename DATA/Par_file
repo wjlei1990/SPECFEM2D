@@ -26,8 +26,8 @@ RECORD_LENGTH_IN_SECONDS     = 10.0d+1
 DT                           = 4.0d-3
 
 # model parameter
-LENGTH                       = 20.0d+0.3
-HEIGHT                       = 10.0d+0.3
+LENGTH                       = 20.0d+03
+HEIGHT                       = 10.0d+03
 
 #model tyep: 1)Homo: homogeneous model; 2)2layer: 2-layer model
 MODEL_TYPE                   = HOMO

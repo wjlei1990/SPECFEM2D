@@ -26,7 +26,7 @@ contains
     character(len=10) :: MODEL_TYPE
 
 
-    open(unit=IIN,file="Par_file")
+    open(unit=IIN,file="DATA/Par_file")
 
     if(rank.eq.0)then
       do i=1,idummy
@@ -44,12 +44,16 @@ contains
       read(IIN,*)
       read(IIN,*)
       read(IIN,6) dstring, LOCAL_PATH
+      read(IIN,*)
+      read(IIN,*)
       read(IIN,6) dstring, OUTPUT_PATH
       read(IIN,*)
       read(IIN,*)
       read(IIN,7) dstring, RECORD_LENGTH_IN_SECONDS
       read(IIN,*)
+      read(IIN,*)
       read(IIN,7) dstring, DT
+      read(IIN,*)
       read(IIN,*)
       read(IIN,7) dstring, LENGTH
       read(IIN,7) dstring, HEIGHT
@@ -69,7 +73,7 @@ contains
     endif
     call MPI_Bcast(SIMUL_TYPE,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(NEX_XI,1,MPI_INTEGER,0,comm,ierr)
-    call MPI_Bcast(NEX_ZI,1,MPI_INTEGER,0,comm,ierr)
+    cal MPI_Bcast(NEX_ZI,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(NPROC_XI,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(NPROC_ZI,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(LOCAL_PATH,300,MPI_CHARACTER,0,comm,ierr)
@@ -83,7 +87,7 @@ contains
     NELE=max(NEX, NEZ)
     NSPEC=NEX*NEZ 
     NGLLSQUARE=NGLLX*NGLLZ
-    NGLL=max(NGLLX*NGLLZ)
+    NGLL=max(NGLLX, NGLLZ)
     NGLOB=((NGLLX-1)*NEX +1)*((NGLLZ-1)*NEZ+1)
 
     NSTEP=RECORD_LENGTH_IN_SECONDS/DT
@@ -91,7 +95,7 @@ contains
 5 format(A,I5)
 6 format(A,A)
 7 format(A,E15.5)
-8 format(A,L)
+8 format(A,L5)
 
   end subroutine read_parfile
 

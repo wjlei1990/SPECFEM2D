@@ -1,32 +1,34 @@
 module wave2d_mesh
 
-  use wave2d_constants
+  use constants
 
   implicit none
 
 contains
 
   subroutine mesh_one_proc(SIMUL_TYPE,mesh_anchor, NEX, NEZ,nspec,LENGTH,HEIGHT,&
-              x,z,nglob,ibool,xigll,zigll,ibelm,MODEL_X1,MODEL_X2,&
-              MODEL_Z1,MODEL_Z2,ID,DEBUG)
+              x,z,nglob,ibool,xigll,zigll,nspecb,ibelm,MODEL_X1,MODEL_X2,&
+              MODEL_Z1,MODEL_Z2,id,DEBUG)
 
     integer ::SIMUL_TYPE
-    double precision :: mesh_anchor(2,4)
-    integer :: NEX, NEZ
-    integer ::nspec
+    double precision,intent(in) :: mesh_anchor(2,2)
+    integer,intent(in) :: NEX, NEZ
+    integer,intent(in) ::nspec
     integer,dimension(NGLLX,NGLLZ,nspec) ::ibool
+    integer ,intent(in) ::nglob
+    integer,dimension(3,nglob),intent(out) ::id
     double precision, dimension(nglob) ::x,z
     double precision,dimension(NGLLX)::xigll
     double precision,dimension(NGLLZ)::zigll
-    integer dimension(4) ::nspecb
-    integer,dimension(:,:),intent(in)::ibelm
+    integer, dimension(4) ::nspecb
+    integer,dimension(:,:)::ibelm
     double precision::MODEL_X1,MODEL_X2,MODEL_Z1,MODEL_Z2
 
     double precision :: LENGTH, HEIGHT
     logical ::DEBUG
 
     !local variable
-    double precision,dimension ::x1,x2,z1,z2
+    double precision ::x1,x2,z1,z2
     integer ispec,ib,i,j,k,iglob,iglob1,itime,ix,iz,ii,jj
     integer N_EQ,n_fix
 
@@ -35,12 +37,11 @@ contains
     nspecb(:) = 0
     N_EQ=0
     n_fix=0
-    nspec=NEX*NEZ
 
 
     !-----------------------------------------------------------
-    LENGTH=abs(mesh_anchor(1,2)-mesh_anchor(1,1))
-    HEIGHT=abs(mesh_anchor(2,4)-mesh_anchor(2,1))
+    !LENGTH=abs(mesh_anchor(1,2)-mesh_anchor(1,1))
+    !HEIGHT=abs(mesh_anchor(2,2)-mesh_anchor(2,1))
     ! loop over all elements
     do iz = 1,NEZ
        do ix = 1,NEX
@@ -101,33 +102,39 @@ contains
        end do
     end do
     
-  call set_ID_array(nspecb,nspec,SIMUL_TYPE,N_EQ,n_fix,NEX,NEZ,&
-                ID,DEBUG)
+  if(iglob.ne.nglob) then
+        print *,iglob,nglob
+        stop 'Error in getting ibool'
+  end if
+
+  call set_ID_array(nspec,nglob,SIMUL_TYPE,N_EQ,n_fix,NEX,NEZ,&
+                ibool,id,DEBUG)
     !call set_IEN_array()
     !call set_LM_array()
 
     ! estimate the time step
-    dh = HEIGHT/dble((NGLLZ-1)*NEZ)
-    if(dh > LENGTH/dble((NGLLX-1)*NEX)) dh = LENGTH/dble((NGLLX-1)*NEX)
-    c = sqrt((INCOMPRESSIBILITY+FOUR_THIRDS*RIGIDITY)/DENSITY)
-    time_step = 0.2*dh/c
-    print *
-    print *,'time step estimate from courant = 0.2: ',sngl(time_step),' seconds'
-    print *,'  actual time step: ',sngl(DT),' seconds'
+    !dh = HEIGHT/dble((NGLLZ-1)*NEZ)
+    !if(dh > LENGTH/dble((NGLLX-1)*NEX)) dh = LENGTH/dble((NGLLX-1)*NEX)
+    !c = sqrt((INCOMPRESSIBILITY+FOUR_THIRDS*RIGIDITY)/DENSITY)
+    !time_step = 0.2*dh/c
+    !print *
+    !print *,'time step estimate from courant = 0.2: ',sngl(time_step),' seconds'
+    !print *,'  actual time step: ',sngl(DT),' seconds'
    
-  end subroutine mesher
+  end subroutine mesh_one_proc
 
   !-------------------------------------------------------
-  subroutine set_ID_array(nspecb,nspec,SIMUL_TYPE,N_EQ,n_fix,NEX,NEZ,&
-                ID,DEBUG)
+  subroutine set_ID_array(nspec,nglob,SIMUL_TYPE,N_EQ,n_fix,NEX,NEZ,&
+                ibool,ID,DEBUG)
 
-    integer ::nspecb
+    integer ::nspec,nglob
     integer ::SIMUL_TYPE
     integer ::N_EQ
     integer ::n_fix
     integer ::NEX,NEZ
-    integer,dimension(:,:),intent(in) ::ID
+    integer,dimension(3,nglob),intent(out) ::ID
     integer,dimension(NGLLX,NGLLZ,nspec) ::ibool
+    logical ::DEBUG
 
     !local variable
     integer ix,iz,i,j,ispec
@@ -254,17 +261,17 @@ contains
   end subroutine set_ID_array
 
 !--------------------------------------------------------
-  subroutine set_model_property(NSPEC,ibool,x,z,rho,kappa,mu)
-    integer ::NSPEC
-    integer,dimension(NGLLX,NGLLZ,NSPEC)::ibool
+  subroutine set_model_property(nspec,nglob,ibool,x,z,rho,kappa,mu)
+    integer ::nspec,nglob
+    integer,dimension(NGLLX,NGLLZ,nspec)::ibool
     double precision,dimension(nglob) ::x,z
-    double precision, dimension(NGLLX,NGLLZ,NSPEC)::rho,kappa,mu
+    double precision, dimension(NGLLX,NGLLZ,nspec)::rho,kappa,mu
 
     !local variables
     integer :: ispec, i, j, iglob
 
     ! properties
-    do ispec = 1,NSPEC
+    do ispec = 1,nspec
        !  get center of element
        iglob = ibool(NGLLX/2,NGLLZ/2,ispec)
        do j = 1,NGLLZ
@@ -288,4 +295,4 @@ contains
 
 !---------------------------------------------
 
-end module wave2d_mesher
+end module wave2d_mesh

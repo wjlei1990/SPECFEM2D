@@ -46,6 +46,7 @@ program wave2d
   call MPI_Comm_size(comm, nproc, ierr)
 
   call read_parfile(LOCAL_PATH, OUTPUT_PATH, rank, nproc, comm)
+  stop
 
   !=================
   !setup

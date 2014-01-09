@@ -7,7 +7,7 @@ SUB = source_time_function  gll_library lagrange_poly  numerical_recipes
 SRC_DIR = src
 MOD_DIR = mod
 OBJ_DIR = obj
-BIN_DIR = .
+BIN_DIR = bin
 MAIN = wave2d
 MOD_FLAG= module
 
@@ -17,19 +17,12 @@ F90_OBJ = $(patsubst %,$(OBJ_DIR)/%.o,$(SUB))
 OBJ = $(F90_OBJ) $(MOD_OBJ)
 
 
-all :  $(MAIN)
+specfem:
+	cd src/specfem2d; make
 
-$(MAIN) : % : $(SRC_DIR)/%.f90 $(F90_OBJ) $(MOD_OBJ)
-	$(F90) -o $(BIN_DIR)/$* $(F90_FLAGS) $(SRC_DIR)/$*.f90 $(OBJ)
-
-$(F90_OBJ): $(OBJ_DIR)/%.o : $(SRC_DIR)/%.f90
-	$(F90) -o $@ $(F90_FLAGS) -c $(SRC_DIR)/$*.f90 
-
-$(MOD_OBJ): $(OBJ_DIR)/%.o : $(SRC_DIR)/%.f90
-	$(F90) -o $@ $(F90_FLAGS) -c $(SRC_DIR)/$*.f90 
 
 .PHONY : clean
 
 clean:
-	\rm -f *.o *.mod *~ $(OBJ_DIR)/*.o $(MOD_DIR)/*.mod  *.gif *.ps $(MAIN)  plot*.csh *.eps *.cpt src/*~ OUTPUT_FILES/* $(OBJ_DIR)/*.il
+	rm -f $(OBJ_DIR)/* $(BIN_DIR)/* 
 
