@@ -40,8 +40,8 @@ CFLAGS= -g -O0 -check all -free
 _OBJ = constants.o lagrange_poly.o gll_library.o exit_mpi.o \
 			 wave2d_variables.o wave2d_define_der_matrices.o \
 			 read_mesh.o assemble_MPI.o wave2d_simul_type.o\
-			 wave2d_io_subs.o source_time_function.o\
-			 set_src_and_rec.o wave2d_solver.o main.o\
+			 wave2d_io_subs.o source_time_function.o wave2d_jacobian.o\
+			 set_src_and_rec.o wave2d_solver.o specfem2d.o\
 	
 OBJ = $(patsubst %, $(OBJDIR)/%,$(_OBJ))
 

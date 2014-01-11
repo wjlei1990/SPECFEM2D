@@ -23,6 +23,7 @@ integer,dimension(4) ::nspecb
 integer,dimension(:,:),allocatable::ibelm
 integer,dimension(MAX_INTERFACE) ::my_neighbour,nibool_interfaces
 integer,dimension(:,:),allocatable::ibool_interfaces
+double precision:: density0,incompressibility0,rigidity0
 double precision,dimension(:,:,:),allocatable::rho,kappa,mu
 
 

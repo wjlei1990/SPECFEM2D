@@ -16,6 +16,10 @@ MOD_OBJ = $(patsubst %,$(OBJ_DIR)/%.o,$(MOD))
 F90_OBJ = $(patsubst %,$(OBJ_DIR)/%.o,$(SUB))
 OBJ = $(F90_OBJ) $(MOD_OBJ)
 
+PROG:mesh specfem
+
+mesh:
+	cd src/mesh2d; make
 
 specfem:
 	cd src/specfem2d; make

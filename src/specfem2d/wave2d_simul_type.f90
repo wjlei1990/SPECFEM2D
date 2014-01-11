@@ -37,6 +37,7 @@ contains
       call MPI_Abort(comm, errorcode,ierr)
       !endif
     endif
+    !print *,"simul_type, af, rank:", simul_type, absorb_flag, rank
 
   end subroutine set_simulation_flag
 

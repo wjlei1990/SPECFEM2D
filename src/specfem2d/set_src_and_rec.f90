@@ -22,7 +22,7 @@ contains
     !=========
     !read src in master node
     if(rank.eq.0)then
-      open(unit=IIN,file="source.txt")
+      open(unit=IIN,file="DATA/source.txt")
       read(IIN,*) ns
     endif
 
@@ -41,7 +41,7 @@ contains
     !===========
     !read rec in master node
     if(rank.eq.0)then
-      open(unit=IIN,file="receiver.txt")
+      open(unit=IIN,file="DATA/receiver.txt")
       read(IIN,*) nrec
     endif
 
@@ -73,18 +73,42 @@ contains
     integer :: rank, nproc, comm
     integer :: min_proc
     
-    integer :: i
+    integer :: i, ierr
     double precision :: short_dist
+    character(len=100) :: string_proc, fn
 
     do i=1, ns
       call find_close_grid_point(x,z,ibool, x_src(i),z_src(i), &
             short_dist,sglob(i),min_proc,rank,nproc,comm)
     enddo 
+!    print *,"rank,sglob:",rank, sglob(1)
+
+    write(string_proc,'(i5.5)')rank
+    fn="OUTPUT_FILES/source_proc"//trim(string_proc)
+!    print *,"fn", fn, rank
+    !call MPI_Barrier(comm, ierr)
+    !stop
+    open(11,file=fn)
+    do i=1,ns
+      if(sglob(i).gt.0)then
+        write(11,*) x_src(i), z_src(i), sglob(i), rank, x(sglob(i)), z(sglob(i))
+      endif
+    enddo
+    close(11)
 
     do i=1, nrec
       call find_close_grid_point(x,z,ibool,x_rec(i),z_rec(i), &
             short_dist,rglob(i),min_proc,rank,nproc,comm)
     enddo
+    fn="OUTPUT_FILES/receiver_proc"//trim(string_proc)
+    open(11,file=fn)
+    do i=1,nrec
+      if(rglob(i).gt.0)then
+        write(11,*) x_rec(i), z_rec(i), rglob(i), rank, x(rglob(i)), z(rglob(i))
+      endif
+    enddo
+    close(11)
+!    print *,"rank,rglob:",rank, rglob(1)
 
   end subroutine locate_src_and_rec
 
@@ -104,6 +128,8 @@ contains
     integer :: min_proc
     double precision :: dist_temp
     double precision :: dist_temp_array(nproc)
+
+    integer :: ierr
 
     !init
     short_dist=10000.0
@@ -125,21 +151,25 @@ contains
       enddo
     enddo
 
-    call MPI_Gather(short_dist,1, MPI_DOUBLE_PRECISION, dist_temp_array, &
-      MPI_DOUBLE_PRECISION, 0, comm)
+    !print *, "rank, short_dist:", rank, short_dist
+    call MPI_Barrier(comm,ierr)
+
+    call MPI_Gather(short_dist,1, MPI_DOUBLE_PRECISION, dist_temp_array, 1, &
+      MPI_DOUBLE_PRECISION, 0, comm, ierr)
 
     if(rank.eq.0) then
+      !print *,"gather dist:",dist_temp_array(:)
       dist_temp=dist_temp_array(1)
-      min_proc=1
-      do i=2, nproc
+      min_proc=0
+      do i=1, nproc
         if(dist_temp_array(i).lt.dist_temp)then
           dist_temp=dist_temp_array(i)
-          min_proc=i
+          min_proc=i-1
         endif
       enddo
     endif
     
-    call MPI_Bcast(min_proc, 1, MPI_INTEGER, 0, comm);
+    call MPI_Bcast(min_proc, 1, MPI_INTEGER, 0, comm, ierr);
 
     if(rank.ne.min_proc)then
       target_glob=0

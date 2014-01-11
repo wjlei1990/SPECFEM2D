@@ -22,7 +22,8 @@ contains
     integer :: IIN=110
 
     INTEGER :: NEX_XI, NEX_ZI, NPROC_XI, NPROC_ZI
-    double precision :: LENGTH, HEIGHT, DENSITY, INCOMPRESSIBILITY, RIGIDITY
+    double precision :: MODEL_X1, MODEL_X2,MODEL_Z1,MODEL_Z2
+    double precision ::DENSITY, INCOMPRESSIBILITY, RIGIDITY
     character(len=10) :: MODEL_TYPE
 
 
@@ -55,8 +56,10 @@ contains
       read(IIN,7) dstring, DT
       read(IIN,*)
       read(IIN,*)
-      read(IIN,7) dstring, LENGTH
-      read(IIN,7) dstring, HEIGHT
+      read(IIN,7) dstring, MODEL_X1
+      read(IIN,7) dstring, MODEL_X2
+      read(IIN,7) dstring, MODEL_Z1
+      read(IIN,7) dstring, MODEL_Z2
       read(IIN,*)
       read(IIN,*)
       read(IIN,6) dstring, MODEL_TYPE
@@ -73,7 +76,7 @@ contains
     endif
     call MPI_Bcast(SIMUL_TYPE,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(NEX_XI,1,MPI_INTEGER,0,comm,ierr)
-    cal MPI_Bcast(NEX_ZI,1,MPI_INTEGER,0,comm,ierr)
+    call MPI_Bcast(NEX_ZI,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(NPROC_XI,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(NPROC_ZI,1,MPI_INTEGER,0,comm,ierr)
     call MPI_Bcast(LOCAL_PATH,300,MPI_CHARACTER,0,comm,ierr)
@@ -83,12 +86,12 @@ contains
     call MPI_Bcast(DEBUG,1,MPI_LOGICAL,0,comm,ierr)
 
     NEX=NEX_XI/NPROC_XI
-    NEX=NEX_ZI/NPROC_ZI
-    NELE=max(NEX, NEZ)
-    NSPEC=NEX*NEZ 
+    NEZ=NEX_ZI/NPROC_ZI
+    !NELE=max(NEX, NEZ)
+    !NSPEC=NEX*NEZ 
     NGLLSQUARE=NGLLX*NGLLZ
     NGLL=max(NGLLX, NGLLZ)
-    NGLOB=((NGLLX-1)*NEX +1)*((NGLLZ-1)*NEZ+1)
+    !NGLOB=((NGLLX-1)*NEX +1)*((NGLLZ-1)*NEZ+1)
 
     NSTEP=RECORD_LENGTH_IN_SECONDS/DT
 
@@ -133,7 +136,7 @@ contains
     call system('mkdir -p '//trim(OUTPUT_PATH)//'')
 
     do irec = 1, nrec
-      if(rglob(irec).ne.0)then
+      if(rglob(irec).gt.0)then
         do icomp = 1, 3
           write(file_name,'(a,a,i2.2,a,i1.1)') trim(OUTPUT_PATH), &
             "/seismogram_", irec, '_', icomp
@@ -148,6 +151,30 @@ contains
     enddo
 
   end subroutine write_seismogram
+
+
+  subroutine write_stf(samp,nstep,ns,OUTPUT_PATH)
+    integer ::nstep,ns
+    double precision,dimension(nstep,3,ns)::samp
+
+    !local 
+    integer ::istep,is,ios
+    character(len=*),intent(in) :: OUTPUT_PATH
+    character(len=200) ::outfile
+
+    do is=1,ns
+      write(outfile,'(a,a,i2.2,a,i1.1)') trim(OUTPUT_PATH), &
+                  "/source_", is
+ 
+      open(unit=12,file = outfile, status= 'unknown',iostat=ios)
+      do istep=1,nstep
+        write(12,*) samp(istep,1,is),samp(istep,2,is),samp(istep,3,is) 
+      end do
+      close(12)
+
+    end do
+  end subroutine write_stf
+    
 
   !------------------------------------------------
 

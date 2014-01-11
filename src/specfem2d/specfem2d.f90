@@ -3,7 +3,8 @@ program wave2d
   use set_src_and_rec
   use wave2d_variables
   use wave2d_solver
-  use mesh_io
+  use wave2d_jacobian
+  !use mesh_io
   use wave2d_io_subs
   use simulation_type
   !use wave2d_write_seismo_subs
@@ -35,7 +36,7 @@ program wave2d
   !logical :: DEBUG
 
   !MPI env var
-  integer :: rank, nproc, comm
+  integer :: rank, nproc, comm, request, mstatus(MPI_STATUS_SIZE)
   integer :: ierr
   integer :: itime
 
@@ -46,41 +47,77 @@ program wave2d
   call MPI_Comm_size(comm, nproc, ierr)
 
   call read_parfile(LOCAL_PATH, OUTPUT_PATH, rank, nproc, comm)
-  stop
+  print *, "read parfile finish:", rank
+  call MPI_Barrier(comm,ierr)
+  !call MPI_Wait(request,mstatus,ierr)
 
   !=================
   !setup
   !which type of simulation
+  call set_simulation_flag(SIMUL_TYPE,comm)
   if(rank.eq.0)then
     print *, 'The type of simulation:',SIMUL_TYPE
     print *, "1)dynamic relax  2)wave propagation"
-    call set_simulation_flag(SIMUL_TYPE,comm)
     ! set up model and mesher
     print *, "ALPHA=",S_ALPHA
     print *, "BETA=",S_BETA
   endif
+  call MPI_Barrier(comm,ierr)
 
   !===================
   !read mesh
-  call read_mesh_init(rank,NEX,NEZ,nglob,nspec,nspecb,ninterface)
+  call read_mesh_init(rank,local_path)
+  call MPI_Barrier(comm,ierr)
+  print *, "read init mesh finish", rank
+  call MPI_Barrier(comm,ierr)
   NELE=max(NEX, NEZ)
   allocate(x(nglob))
   allocate(z(nglob))
   allocate(ibool(NGLLX,NGLLZ,nspec))
-  allocate(ibelm(4,NELE))
+  allocate(id(3,nglob))
+  allocate(ibelm(NELE,4))
   allocate(my_neighbours(8))
   allocate(nibool_interfaces(8))
-  allocate(ibool_interfaces(8,NELE))
+  allocate(ibool_interfaces(max_ibool_interfaces_size,8))
+  allocate(rho(NGLLX,NGLLZ,nspec))
+  allocate(kappa(NGLLX,NGLLZ,nspec))
+  allocate(mu(NGLLX,NGLLZ,nspec))
+
+  allocate(dxidx(NGLLX,NGLLZ,nspec))
+  allocate(dxidz(NGLLX,NGLLZ,nspec))
+  allocate(dgammadx(NGLLX,NGLLZ,nspec))
+  allocate(dgammadz(NGLLX,NGLLZ,nspec))
+  allocate(dxdxi(NGLLX,NGLLZ,nspec))
+  allocate(dzdxi(NGLLX,NGLLZ,nspec))
+  allocate(dxdgamma(NGLLX,NGLLZ,nspec))
+  allocate(dzdgamma(NGLLX,NGLLZ,nspec))
+  allocate(jacobian(NGLLX,NGLLZ,nspec))
+  allocate(jacobianb(4,NGLL,NELE))
+
+
   
-  call read_array(rank,NEX,NEZ,nglob,nspec,nspecb,ninterface,&
-        x,z,ibool,ibelm,my_neighbours,nibool_interfaces,ibool_interfaces)
+  !call read_array(rank,NEX,NEZ,nglob,nspec,nspecb,ninterface,&
+  !      x,z,ibool,ibelm,my_neighbours,nibool_interfaces,ibool_interfaces)
+  call read_mesh(rank,local_path)
+  print *, "read mesh finish", rank
+  call MPI_Barrier(comm,ierr)
   !call set_model_property()
   !stop
 
   call read_src_and_rec(ns, x_src, z_src, nrec, x_rec, z_rec, &
         rank, nproc, comm)
+  allocate(sglob(ns))
+  allocate(rglob(nrec))
+  !print *, "rank, src, rec:", rank, x_src(1), z_src(1), x_rec(1), z_rec(1) 
+  call MPI_Barrier(comm,ierr)
   call locate_src_and_rec(x, z, ibool, ns, sglob, x_src, z_src, &
         nrec, rglob, x_rec, z_rec, rank, nproc, comm)
+
+  !print *, "set src and rec finish"
+  !print *, "rank, src, rec:", rank, sglob(1), rglob(1) 
+  call MPI_Barrier(comm,ierr)
+  
+  !stop
 
   !===================
   !locate source and receiver
@@ -89,9 +126,11 @@ program wave2d
   allocate(syn(NSTEP,3,nrec))
   syn(:,:,:) = 0.0
   ! setup source time function
-  print *, 'Setup source time functions ...'
   hdur = 100 * DT 
-  print *, 'hdur = ',sngl(hdur),' s'
+  if(rank.eq.0)then
+    print *, 'Setup source time functions ...'
+    print *, 'hdur = ',sngl(hdur),' s'
+  endif
   !f0(1) = 0.d10; f0(2) = 1.0d10; f0(3) = 0.d10 ! for SH source
   f0(1) = 1.d10; f0(2) = 0.0d10; f0(3) = 1.d10  ! for SV source
   samp = 0.0
@@ -101,7 +140,7 @@ program wave2d
       samp(itime, :, i) = stf * f0(:)  
     enddo
   enddo
-  
+  call write_stf(samp,NSTEP,ns,OUTPUT_PATH)
   !=========================
   ! solver for forward wavefield
   print *, 'Start simulation ...'

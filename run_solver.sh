@@ -1,3 +1,3 @@
 #!/bin/sh
 
-mpiexec -n 1 ./bin/xspecfem2d
+mpiexec -n 16 ./bin/xspecfem2d

@@ -6,10 +6,11 @@ module wave2d_mesh
 
 contains
 
-  subroutine mesh_one_proc(SIMUL_TYPE,mesh_anchor, NEX, NEZ,nspec,LENGTH,HEIGHT,&
+  subroutine mesh_one_proc(iproc,SIMUL_TYPE,mesh_anchor, NEX, NEZ,nspec,LENGTH,HEIGHT,&
               x,z,nglob,ibool,xigll,zigll,nspecb,ibelm,MODEL_X1,MODEL_X2,&
               MODEL_Z1,MODEL_Z2,id,DEBUG)
 
+    integer ::iproc
     integer ::SIMUL_TYPE
     double precision,intent(in) :: mesh_anchor(2,2)
     integer,intent(in) :: NEX, NEZ
@@ -77,25 +78,26 @@ contains
           if (ix.eq.1) then         
             if(abs(x1-MODEL_X1).lt.TOL)then
               nspecb(1) = nspecb(1) + 1
-              ibelm(1,nspecb(1)) = ispec
+              ibelm(nspecb(1),1) = ispec
             endif
           endif
           if (ix.eq.NEX) then
             if(abs(x2-MODEL_X2).lt.TOL)then
               nspecb(2) = nspecb(2) + 1
-              ibelm(2,nspecb(2)) = ispec
+              ibelm(nspecb(2),2) = ispec
             endif
           endif
           if (iz.eq.1) then
             if(abs(z1-MODEL_Z1).lt.TOL)then
               nspecb(3) = nspecb(3) + 1
-              ibelm(3,nspecb(3)) = ispec
+              ibelm(nspecb(3),3) = ispec
             endif
           endif
           if (iz.eq.NEZ) then
             if(abs(z2-MODEL_Z2).lt.TOL)then
+              if(iproc.eq.0) print *,'z2',z2,MODEL_Z2,mesh_anchor(2,2)
               nspecb(4) = nspecb(4) + 1
-              ibelm(4,nspecb(4)) = ispec
+              ibelm(nspecb(4),4) = ispec
            endif
           endif
           ! end loop over elements
@@ -276,11 +278,11 @@ contains
        iglob = ibool(NGLLX/2,NGLLZ/2,ispec)
        do j = 1,NGLLZ
           do i = 1,NGLLX
-             if(z(iglob) >= 30000.0) then
+             if(z(iglob) <= 30000.0) then
                 ! crust
-                rho(i,j,ispec) = 3000
-                kappa(i,j,ispec) = 1.0e+11
-                mu(i,j,ispec) = 6.0e+10
+                rho(i,j,ispec) = 2600
+                kappa(i,j,ispec) = 5.2e+10
+                mu(i,j,ispec) = 2.6e+10
              else
                 ! mantle
                 rho(i,j,ispec) = 3380.

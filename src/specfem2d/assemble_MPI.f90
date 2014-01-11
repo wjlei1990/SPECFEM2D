@@ -48,12 +48,15 @@
 ! These subroutines are for the most part not used in the sequential version.
 !
 
+module assemble_subs
 
 !#ifdef USE_MPI
 
 !-----------------------------------------------
 ! Assembling the mass matrix.
 !-----------------------------------------------
+contains
+
   subroutine assemble_MPI_mass(array_val,npoin_val, &
               ninterface,  max_ibool_interfaces_size, &
               ibool_interfaces, nibool_interfaces, my_neighbours,&
@@ -78,7 +81,7 @@
   ! acoustic
 
   integer  :: ipoin, num_interface
-  integer  :: ier
+  integer  :: ier,ierr
   integer  :: i
 ! there are now two different mass matrices for the elastic case
 ! in order to handle the C deltat / 2 contribution of the Stacey conditions to the mass matrix
@@ -119,16 +122,29 @@
           my_neighbours(num_interface), 11, &
           comm, msg_status(1), ier)
       endif
+      call MPI_Barrier(comm,ierr)
 
      ipoin = 0
      do i = 1, nibool_interfaces(num_interface)
         ipoin = ipoin + 1
         array_val(ibool_interfaces(i,num_interface)) = &
-            array_val(ibool_interfaces(i,num_interface))  &
+             array_val(ibool_interfaces(i,num_interface))  &
              + buffer_recv_faces_scalar(ipoin,num_interface)
      enddo
 
   enddo
+
+
+!     do num_interface = 1, ninterface
+!       ipoin = 0
+!       do i = 1, nibool_interfaces(num_interface)
+!         ipoin = ipoin + 1
+!         print  &
+!           *,'mass',array_val(ibool_interfaces(i,num_interface)),num_interface,i,rank
+!        if(rank.eq.) 
+!       end do
+!     end do
+
 
   ! synchronizes MPI processes
   call MPI_BARRIER(comm,ier)
@@ -162,13 +178,13 @@
   !include 'constants.h'
 
   integer, intent(in)  :: npoin
-  double precision, dimension(3,npoin), intent(inout) :: array_val
+  double precision, dimension(1,npoin), intent(inout) :: array_val
 
-  integer, dimension(:), intent(in) ::ID
+  integer, dimension(:,:), intent(in) ::ID
   integer, intent(in)  :: ninterface
   integer, intent(in)  :: max_ibool_interfaces_size
   integer, dimension(max_ibool_interfaces_size,ninterface), intent(in)  :: ibool_interfaces
-  integer, dimension(ninterface), intent(in)  :: nibool_interfaces
+  integer, dimension(ninterface)   :: nibool_interfaces
   !integer, dimension(ninterface*2), intent(inout)  :: tab_requests_send_recv
   integer, dimension(ninterface*2)  :: tab_requests_send_recv
   !double precision, dimension(max_ibool_interfaces_size,ninterface), intent(inout) :: &
@@ -176,45 +192,72 @@
   !double precision, dimension(max_ibool_interfaces_size,ninterface), intent(inout) :: &
   !     buffer_recv_faces_vector
   ! array to assemble
-  double precision, dimension(max_ibool_interfaces_size,ninterface) :: &
+  double precision, dimension(3*max_ibool_interfaces_size,ninterface) :: &
        buffer_send_faces_vector
-  double precision, dimension(max_ibool_interfaces_size,ninterface) :: &
+  double precision, dimension(3*max_ibool_interfaces_size,ninterface) :: &
        buffer_recv_faces_vector
   integer, dimension(ninterface), intent(in) :: my_neighbours
 
-  integer  :: ipoin, num_interface, iinterface, ier, i
+  integer  :: ipoin, num_interface, iinterface, ier, i, j,ierr
   integer, dimension(MPI_STATUS_SIZE)  :: stat
   integer :: rank, comm
 
+  buffer_send_faces_vector(:,:)=0
+  buffer_recv_faces_vector(:,:)=0
+
 
   do iinterface = 1, ninterface
-     ipoin = 0
-     do i = 1, nibool_interfaces(iinterface)
-        buffer_send_faces_vector(ipoin+1:ipoin+3,iinterface) = &
-             array_val(:,ID(ibool_interfaces(i,iinterface)))
-        ipoin = ipoin + 3
-     enddo
-
+    ipoin = 0
+    do i = 1, nibool_interfaces(iinterface)
+      do j=1,3
+!        print *,'id',ID(:,:),rank
+!        print *,'ibool i ii',ibool_interfaces(i,iinterface),i,iinterface,rank
+!        print    *,'all',ipoin,iinterface,ID(j,ibool_interfaces(i,iinterface)),rank
+        buffer_send_faces_vector(ipoin+1,iinterface) = &
+             array_val(1,ID(j,ibool_interfaces(i,iinterface)))
+        ipoin = ipoin + 1
+      enddo
+    enddo
+    if(nibool_interfaces(iinterface).gt.0)then
+!      print *, "max send:", maxval(buffer_send_faces_vector),rank, iinterface
+    endif
   enddo
+!  print *,"finish asse",rank
+  call MPI_Barrier(comm,ierr)
 
   do iinterface = 1, ninterface
 
-    if(nibool_interfaces(iinterface).ne.0)then
+!    print *,'begin exe send',iinterface,nibool_interfaces(iinterface),rank
+    if(nibool_interfaces(iinterface).gt.0)then
+!      print *,'send exe',iinterface,rank,my_neighbours(iinterface)
       call MPI_ISEND( buffer_send_faces_vector(1,iinterface), &
         3*nibool_interfaces(iinterface), MPI_DOUBLE_PRECISION, &
         my_neighbours(iinterface), 12, comm, &
         tab_requests_send_recv(iinterface), ier)
+        !print *, "bsfv:", buffer_send_faces_vector(1:3*nibool_interfaces(iinterface),iinterface), rank, my_neighbours(iinterface)
+!        print *,'send exe1',iinterface,rank,my_neighbours(iinterface)
     endif
+  end do
+    
+!  print *,"finish send 1",rank
+  call MPI_Barrier(comm,ierr)
+  do iinterface = 1, ninterface
 
     if ( ier /= MPI_SUCCESS ) then
       call exit_mpi(rank,comm,'MPI_ISEND unsuccessful in assemble_MPI_vector')
     endif
+    
+!    print *,"finish send",rank
+    call MPI_Barrier(comm,ierr)
 
-    if(nibool_interfaces(iinterface).ne.0)then
+
+    if(nibool_interfaces(iinterface).gt.0)then
       call MPI_IRECV ( buffer_recv_faces_vector(1,iinterface), &
              3*nibool_interfaces(iinterface), MPI_DOUBLE_PRECISION, &
              my_neighbours(iinterface), 12, comm, &
              tab_requests_send_recv(ninterface+iinterface), ier)
+       ! print *, "brfv:", buffer_recv_faces_vector, rank, my_neighbours(iinterface)
+!      print *, "max rec:", maxval(buffer_recv_faces_vector(:,iinterface)),rank, iinterface
     endif
 
     if ( ier /= MPI_SUCCESS ) then
@@ -222,27 +265,39 @@
     endif
 
   enddo
-
-  do iinterface = 1, ninterface*2
-
-    call MPI_Wait (tab_requests_send_recv(iinterface), stat, ier)
-
-  enddo
+!  print *,"finish rs",rank
+  call MPI_Barrier(comm,ierr)
 
   do iinterface = 1, ninterface
-     ipoin = 0
-     do i = 1, nibool_interfaces(iinterface)
-        array_val(:,ID(ibool_interfaces(i,iinterface))) = &
-            array_val(:,ID(ibool_interfaces(i,iinterface)))  &
-            + buffer_recv_faces_vector(ipoin+1:ipoin+3,iinterface)
-        ipoin = ipoin + 3
-     enddo
+    if(nibool_interfaces(iinterface).gt.0) then
+!    print *,'wait sucess',iinterface,rank
+       call MPI_Wait (tab_requests_send_recv(iinterface), stat, ier)
+       call MPI_Wait (tab_requests_send_recv(iinterface+ninterface), stat, ier)
+!    print *,'wait sucess1',iinterface,rank
+     end if
 
   enddo
+!  print *,"finish wait",rank
+  call MPI_Barrier(comm,ierr)
+
+
+  do iinterface = 1, ninterface
+    ipoin = 0
+    do i = 1, nibool_interfaces(iinterface)
+      do j=1,3
+        array_val(1,ID(j, ibool_interfaces(i,iinterface))) = &
+            array_val(1,ID(j, ibool_interfaces(i,iinterface)))  &
+            + buffer_recv_faces_vector(ipoin+1,iinterface)
+        ipoin = ipoin + 1
+      enddo
+     enddo
+  enddo
+!  print *,"finish **",rank
+  call MPI_Barrier(comm,ierr)
 
   end subroutine assemble_MPI_vector
 
 
 
 !#endif
-
+end module assemble_subs

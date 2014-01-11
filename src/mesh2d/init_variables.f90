@@ -8,7 +8,7 @@ integer,dimension(NGLLX,NGLLZ,nspec) ::ibool
 integer,dimension(2,nglob) ::id
 integer,dimension(4) :: nspecb
 integer ::max_interface_size
-integer,dimension(4,max_interface_size) ::ibelm
+integer,dimension(max_interface_size,4) ::ibelm
 integer,dimension(MAX_INTERFACE) ::my_neighbour,nibool_interfaces
 integer ::max_interface_size_node
 integer,dimension(max_interface_size_node,8)  ::ibool_interfaces

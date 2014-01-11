@@ -21,5 +21,6 @@
 
 ! Ricker wavelet
   source_time_function = -2.*(alpha**3)*t*dexp(-alpha*alpha*t*t)/dsqrt(PI)
+  
 
   end function source_time_function

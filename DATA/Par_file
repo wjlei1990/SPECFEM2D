@@ -3,31 +3,33 @@
 ########################
 
 #Dynamic Relaxation or Wave simulation
-SIMULATION_TYPE              = 1
+SIMULATION_TYPE              = 2
 
 #number of elements along two sides of the model
-NEX_XI                       = 200
-NEX_ZI                       = 100
+NEX_XI                       = 20
+NEX_ZI                       = 20
 
 #number of processor along two sides of the model
-NPROC_XI                     = 8
+NPROC_XI                     = 4
 NRPOC_ZI                     = 4
 
 #path to store the local mesh file
-LOCAL_PATH                   = ./DATABASES_MPI
+LOCAL_PATH                   = DATABASES_MPI
 
 #path to store the seismograms
-OUTPUT_PATH                  = ./OUTPUT
+OUTPUT_PATH                  = OUTPUT_FILES
 
 #record length in seconds
-RECORD_LENGTH_IN_SECONDS     = 10.0d+1
+RECORD_LENGTH_IN_SECONDS     = 5.0d+0
 
 #simulation time step
 DT                           = 4.0d-3
 
 # model parameter
-LENGTH                       = 20.0d+03
-HEIGHT                       = 10.0d+03
+MODEL_X1                     = 0.0
+MODEL_X2                     = 8000.0
+MODEL_Z1                     = 0.0
+MODEL_Z2                     = 8000.0
 
 #model tyep: 1)Homo: homogeneous model; 2)2layer: 2-layer model
 MODEL_TYPE                   = HOMO

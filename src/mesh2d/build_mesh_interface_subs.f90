@@ -40,10 +40,11 @@ contains
       !n_model_boundary=n_model_boundary+1
       boundary_bool(2)=.false.
     endif
-    if(abs(anchor(2,4)-model_z2).gt.TOL)then
+    if(abs(anchor(2,2)-model_z2).gt.TOL)then
       !n_model_boundary=n_model_boundary+1
       boundary_bool(4)=.false.
     endif
+    print *,'anchor',iproc,'anchor',anchor(:,1),anchor(:,2)
     my_neighbour(1)=iproc-1
     my_neighbour(2)=iproc-nproc_x-1
     my_neighbour(3)=iproc-nproc_x
@@ -77,11 +78,11 @@ contains
       do i=1,NEX
         do j=1,NGLLX-1
           inode=inode+1
-          ibool_interfaces(inode,3)=ibool(1,j,NEZ*(i-1)+1)         
+          ibool_interfaces(inode,3)=ibool(j,1,i)         
         end do
       end do
       inode=inode+1
-      ibool_interfaces(inode,1)=ibool(1,NGLLX,NEZ*(NEX-1)+1)
+      ibool_interfaces(inode,3)=ibool(NGLLX,1,NEX)
       if(.not.boundary_bool(3)) then
         nibool_interfaces(4)=1
         ibool_interfaces(1,4)=ibool(NGLLX,1,NEX)
@@ -95,11 +96,11 @@ contains
       do i=1,NEZ
         do j=1,NGLLZ-1
           inode=inode+1
-          ibool_interfaces(inode,5)=ibool(1,j,NEX*(i-1)+1)         
+          ibool_interfaces(inode,5)=ibool(NGLLX,j,NEX*i)         
         end do
       end do
       inode=inode+1
-      ibool_interfaces(inode,1)=ibool(1,NGLLZ,NEX*(NEZ-1)+1)
+      ibool_interfaces(inode,5)=ibool(NGLLX,NGLLZ,NEX*NEZ)
       if(.not.boundary_bool(4)) then
         nibool_interfaces(6)=1
         ibool_interfaces(1,6)=ibool(NGLLX,NGLLZ,NEX*NEZ)
@@ -113,17 +114,20 @@ contains
       do i=1,NEX
         do j=1,NGLLX-1
           inode=inode+1
-          ibool_interfaces(inode,7)=ibool(1,j,NEZ*(i-1)+1)         
+          ibool_interfaces(inode,7)=ibool(j,NGLLZ,NEZ*(NEX-1)+i)         
         end do
       end do
       inode=inode+1
-      ibool_interfaces(inode,1)=ibool(1,NGLLX,NEZ*(NEX-1)+1)
+      ibool_interfaces(inode,7)=ibool(NGLLX,NGLLZ,NEZ*NEX)
       if(.not.boundary_bool(1)) then
         nibool_interfaces(8)=1
         ibool_interfaces(1,8)=ibool(1,NGLLZ,NEX*(NEZ-1)+1)
       end if
     end if
       
+    do i=1,8
+      if(my_neighbour(i)<0) nibool_interfaces(i)=0
+    end do
     
 
 

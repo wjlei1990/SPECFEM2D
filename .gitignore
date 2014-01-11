@@ -1,3 +1,9 @@
 *.sw*
 *.o
 *.mod
+OUTPUT_FILES/*
+DATABASES_MPI/*
+*log*
+bin/*
+temp
+

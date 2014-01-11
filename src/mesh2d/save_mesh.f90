@@ -1,5 +1,5 @@
 subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,max_interface_size,ibelm, &
-    ninterface,my_neighbour,nibool_interfaces,max_interface_size_node,ibool_interfaces,ID,&
+    ninterface,my_neighbour,nibool_interfaces,max_interface_size_node,ibool_interfaces,id,&
     rho,kappa,mu)
   
   use constants
@@ -13,12 +13,12 @@ subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,max_interface_si
   integer ::nspec
   integer ::max_interface_size
   integer, dimension(4) ::nspecb
-  integer,dimension(4,max_interface_size) ::ibelm
+  integer,dimension(max_interface_size,4) ::ibelm
   integer ::ninterface
   integer, dimension(ninterface) ::my_neighbour,nibool_interfaces
   integer ::max_interface_size_node
   integer,dimension(max_interface_size_node,8) ::ibool_interfaces
-  integer,dimension(3,nglob) ::ID
+  integer,dimension(3,nglob) ::id
   double precision,dimension(NGLLX,NGLLZ,nspec) ::rho,kappa,mu
 
   !local variable
@@ -29,7 +29,7 @@ subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,max_interface_si
   
 
   write(*,*) 'save the database'
-  write(outfile,"(('OUTPUT_FILES/MESHINFO_',i5.5))") iproc
+  write(outfile,"(('DATABASES_MPI/MESHINFO_',i5.5))") iproc
   open(iproc,FILE=trim(outfile),status='unknown',iostat=ios)
   if(ios /= 0) stop 'Error in openning the database file'
   write(iproc,*) NEX,NEZ
@@ -64,10 +64,10 @@ subroutine save_mesh(iproc,NEX,NEZ,nglob,ibool,x,z,nspec,nspecb,max_interface_si
   end do
 
   do i=1,4
-    write(iproc,*) ibelm(i,:)
+    write(iproc,*) ibelm(:,i)
   end do
   do i=1,ninterface
-    write(iproc,*)my_neighbour(i),nibool_interfaces(i),i
+    write(iproc,*)my_neighbour(i),nibool_interfaces(i)
     write(iproc,*)ibool_interfaces(:,i)
   end do
   close(iproc)
